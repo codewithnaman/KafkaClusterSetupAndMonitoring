@@ -1,5 +1,10 @@
 # Kafka Cluster Setup, Monitoring setup and Operations
 
+* [Section 1 : Kafka Cluster Setup](#section-1--kafka-cluster-setup)
+    * [1.1 Zookeeper Theory Part](#11-zookeeper-theory-part)
+    * [1.2 Zookeeper Single instance setup](#12-zookeeper-single-instance-setup)
+    * [1.3 Zookeeper Cluster setup](#13-zookeeper-cluster-setup)
+
 # Section 1 : Kafka Cluster setup
 In this section we are going to discuss below to setup a stable Kafka Cluster
 * Zookeeper Cluster
@@ -374,4 +379,649 @@ Now our zookeeper has been setup, let's get some hands-on on the zookeeper cli. 
 but it is good to have.
 
 ### Hands-on over Zookeeper CLI
- 
+Let's understand and some of the commands we can use in Zookeeper with CLI, As written in above section this is not required
+but good to have. We will look below operations using the Zookeeper CLI. 
+* Creating node/sub-nodes
+* Get/Set data for a node
+* Watch a node
+* Delete a node 
+Let's first enter in Zookeeper CLI.
+
+#### Create a node/sub-node
+```shell script
+ngupta@node1:~/kafka/kafka_2.12-2.3.0$ bin/zookeeper-shell.sh localhost:2181
+Connecting to localhost:2181
+Welcome to ZooKeeper!
+JLine support is disabled
+
+WATCHER::
+
+WatchedEvent state:SyncConnected type:None path:null
+ls
+ls /
+[zookeeper]
+create my-node "This is data"
+Command failed: java.lang.IllegalArgumentException: Path must start with / character
+create /my-node "This is my-node node data"
+Created /my-node
+ls /
+[zookeeper, my-node]
+``` 
+As you can see in above script we entered in CLI then we had done ls to list all the nodes. Initially we did ls only
+and we got no results as we were not querying the root. Then we created the node we need to provide the / character
+at start otherwise we get the error as you can see in above output. So when we had proper syntax like 
+"create /my-node "This is my-node node data" a node is created with data in it which we had provided. And when we
+query using "ls /" we can see our newly created node. Now let's create a sub node.
+```shell script
+create /my-node/sub-node1 "sub-node1 data"
+Created /my-node/sub-node1
+create /my-node/sub-node2 "sub-node2 data"
+Created /my-node/sub-node2
+ls /my-node
+[sub-node1, sub-node2]
+ls /
+[zookeeper, my-node]
+get /my-node/sub-node1
+sub-node1 data
+cZxid = 0x4
+ctime = Tue Nov 12 02:08:16 UTC 2019
+mZxid = 0x4
+mtime = Tue Nov 12 02:08:16 UTC 2019
+pZxid = 0x4
+cversion = 0
+dataVersion = 0
+aclVersion = 0
+ephemeralOwner = 0x0
+dataLength = 14
+numChildren = 0
+```
+As you can see we have created twos sub nodes and we can see it's data.
+
+#### Get/Set data for a node
+To get your data from Zookeeper you need to fire the command get and path to node.
+```shell script
+get /my-node
+This is my-node node data
+cZxid = 0x2
+ctime = Tue Nov 12 01:53:39 UTC 2019
+mZxid = 0x2
+mtime = Tue Nov 12 01:53:39 UTC 2019
+pZxid = 0x2
+cversion = 0
+dataVersion = 0
+aclVersion = 0
+ephemeralOwner = 0x0
+dataLength = 25
+numChildren = 0
+```
+It will provide the data and some more information about the data,as you can see the data version. Let's update the data
+of my-node and see the data again, dataVersion should be updated according the data update. To update the data of a node
+we need to use set command like below:
+```shell script
+set /my-node "This is my-node changed data"
+cZxid = 0x2
+ctime = Tue Nov 12 01:53:39 UTC 2019
+mZxid = 0x3
+mtime = Tue Nov 12 02:01:25 UTC 2019
+pZxid = 0x2
+cversion = 0
+dataVersion = 1
+aclVersion = 0
+ephemeralOwner = 0x0
+dataLength = 28
+numChildren = 0
+get /my-npde
+Node does not exist: /my-npde
+get /my-node
+This is my-node changed data
+cZxid = 0x2
+ctime = Tue Nov 12 01:53:39 UTC 2019
+mZxid = 0x3
+mtime = Tue Nov 12 02:01:25 UTC 2019
+pZxid = 0x2
+cversion = 0
+dataVersion = 1
+aclVersion = 0
+ephemeralOwner = 0x0
+dataLength = 28
+numChildren = 0
+```
+
+#### Watch a node
+Let's watch the nodes, watching means whenever the data is updated on the node we will get an notification when we are
+watching on the data. To set the watch we need to pass one more argument with get which is true to watch as done below:
+
+```shell script
+get /my-node true
+This is my-node changed data
+cZxid = 0x2
+ctime = Tue Nov 12 01:53:39 UTC 2019
+mZxid = 0x3
+mtime = Tue Nov 12 02:01:25 UTC 2019
+pZxid = 0x5
+cversion = 2
+dataVersion = 1
+aclVersion = 0
+ephemeralOwner = 0x0
+dataLength = 28
+numChildren = 2
+set /my-node "Changed to Version 3"
+
+WATCHER::
+
+WatchedEvent state:SyncConnected type:NodeDataChanged path:/my-node
+cZxid = 0x2
+ctime = Tue Nov 12 01:53:39 UTC 2019
+mZxid = 0x6
+mtime = Tue Nov 12 02:12:25 UTC 2019
+pZxid = 0x5
+cversion = 2
+dataVersion = 2
+aclVersion = 0
+ephemeralOwner = 0x0
+dataLength = 20
+numChildren = 2
+set /my-node/sub-node1 "Changed subnode"
+cZxid = 0x4
+ctime = Tue Nov 12 02:08:16 UTC 2019
+mZxid = 0x7
+mtime = Tue Nov 12 02:12:51 UTC 2019
+pZxid = 0x4
+cversion = 0
+dataVersion = 1
+aclVersion = 0
+ephemeralOwner = 0x0
+dataLength = 15
+numChildren = 0
+```
+So when we start watching the node, using get /my-node true, and changed the data we get Watcher Event.
+
+#### Delete a node 
+To delete data recursively we need to use below command:
+```shell script
+ls /
+[zookeeper, my-node]
+rmr /my-node
+ls /
+[zookeeper]
+```
+rmr will remove the node from the node.
+
+## 1.3 Zookeeper Cluster setup
+Before setting up the kafka I am clearing my node-1 setup, and perform below steps on my each node.
+* Check JDK is install on each node, if missing on any node we are going to install.
+
+Node1
+```shell script
+ngupta@node1:~$ java -version
+openjdk version "1.8.0_222"
+OpenJDK Runtime Environment (build 1.8.0_222-8u222-b10-1ubuntu1~18.04.1-b10)
+OpenJDK 64-Bit Server VM (build 25.222-b10, mixed mode)
+```
+Node2
+```shell script
+ngupta@node2:~$ java -version
+openjdk version "1.8.0_222"
+OpenJDK Runtime Environment (build 1.8.0_222-8u222-b10-1ubuntu1~18.04.1-b10)
+OpenJDK 64-Bit Server VM (build 25.222-b10, mixed mode)
+```
+Node3
+```shell script
+ngupta@node3:~$ java -version
+openjdk version "1.8.0_222"
+OpenJDK Runtime Environment (build 1.8.0_222-8u222-b10-1ubuntu1~18.04.1-b10)
+OpenJDK 64-Bit Server VM (build 25.222-b10, mixed mode)
+```
+
+So we have java node in our each server.
+
+* Disable RAM Swap.
+
+Node1
+```shell script
+ngupta@node1:~$ sudo sysctl vm.swappiness
+vm.swappiness = 1
+ngupta@node1:~$
+```
+Node2
+```shell script
+ngupta@node2:~$ sudo sysctl vm.swappiness
+vm.swappiness = 60
+ngupta@node2:~$ sudo sysctl vm.swappiness=1
+vm.swappiness = 1
+ngupta@node2:~$ sudo sysctl vm.swappiness
+vm.swappiness = 1
+ngupta@node2:~$
+```
+Node3
+```shell script
+ngupta@node3:~$ sudo sysctl vm.swappiness
+vm.swappiness = 60
+ngupta@node3:~$ sudo sysctl vm.swappiness=1
+vm.swappiness = 1
+ngupta@node3:~$ sudo sysctl vm.swappiness
+vm.swappiness = 1
+```
+As you can see the Node1 has already disabled the RAM swap, we had during the single node setup. But Node 2 and Node 3 
+are our new node so we had setup for them.
+
+* Get Kafka on all of the servers.
+
+Node1
+```shell script
+ngupta@node1:~$ wget http://apachemirror.wuchna.com/kafka/2.3.1/kafka_2.12-2.                                                                                  3.1.tgz
+--2019-11-12 02:32:32--  http://apachemirror.wuchna.com/kafka/2.3.1/kafka_2.1                                                                                  2-2.3.1.tgz
+Resolving apachemirror.wuchna.com (apachemirror.wuchna.com)... 104.26.3.179,                                                                                   104.26.2.179, 2606:4700:20::681a:2b3, ...
+Connecting to apachemirror.wuchna.com (apachemirror.wuchna.com)|104.26.3.179|                                                                                  :80... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 62366158 (59M) [application/x-gzip]
+Saving to: ‘kafka_2.12-2.3.1.tgz’
+
+kafka_2.12-2.3.1.tgz                    100%[==============================================================================>]  59.48M   997KB/s    in 90s     s
+
+2019-11-12 02:34:02 (674 KB/s) - ‘kafka_2.12-2.3.1.tgz’ saved [62366158/62366158]
+ngupta@node1:~$ clear
+ngupta@node1:~$ ls -lrt
+total 60912
+-rw-rw-r-- 1 ngupta ngupta 62366158 Oct 24 21:25 kafka_2.12-2.3.1.tgz
+ngupta@node1:~$ scp kafka_2.12-2.3.1.tgz ngupta@192.168.109.132:/home/ngupta
+The authenticity of host '192.168.109.132 (192.168.109.132)' can't be established.
+ECDSA key fingerprint is SHA256:mZJYuyD5dnGKzTFKvAg6jz0wagcgvVTF6eApSUBf2nM.
+Are you sure you want to continue connecting (yes/no)? yes
+Warning: Permanently added '192.168.109.132' (ECDSA) to the list of known hosts.
+ngupta@192.168.109.132's password:
+kafka_2.12-2.3.1.tgz                                                                                                         100%   59MB 110.6MB/s   00:00
+ngupta@node1:~$ scp kafka_2.12-2.3.1.tgz ngupta@192.168.109.133:/home/ngupta
+The authenticity of host '192.168.109.133 (192.168.109.133)' can't be established.
+ECDSA key fingerprint is SHA256:mZJYuyD5dnGKzTFKvAg6jz0wagcgvVTF6eApSUBf2nM.
+Are you sure you want to continue connecting (yes/no)? yes
+Warning: Permanently added '192.168.109.133' (ECDSA) to the list of known hosts.
+ngupta@192.168.109.133's password:
+kafka_2.12-2.3.1.tgz                                                                                                         
+```
+At Node 1 we have downloaded a copy of Kafka and copied on to the server path /home/ngupta. Let's check server 2 and 
+server 3.
+
+Node2
+```shell script
+ngupta@node2:~$ pwd
+/home/ngupta
+ngupta@node2:~$ ls -lr
+total 60908
+-rw-rw-r-- 1 ngupta ngupta 62366158 Nov 12 02:35 kafka_2.12-2.3.1.tgz
+```
+Node3
+```shell script
+ngupta@node3:~$ pwd
+/home/ngupta
+ngupta@node3:~$ ls -lrt
+total 60908
+-rw-rw-r-- 1 ngupta ngupta 62366158 Nov 12 02:36 kafka_2.12-2.3.1.tgz
+```
+
+* Extract the kafka on all server.
+
+Node1
+```shell script
+ngupta@node1:~$ ls -lrt
+total 60912
+-rw-rw-r-- 1 ngupta ngupta 62366158 Oct 24 21:25 kafka_2.12-2.3.1.tgz
+ngupta@node1:~$ tar -xzf kafka_2.12-2.3.1.tgz
+ngupta@node1:~$ ls -lrt
+total 60916
+drwxr-xr-x 6 ngupta ngupta     4096 Oct 18 00:12 kafka_2.12-2.3.1
+-rw-rw-r-- 1 ngupta ngupta 62366158 Oct 24 21:25 kafka_2.12-2.3.1.tgz
+ngupta@node1:~$ ls -lrt kafka_2.12-2.3.1
+total 52
+-rw-r--r-- 1 ngupta ngupta   337 Oct 18 00:10 NOTICE
+-rw-r--r-- 1 ngupta ngupta 32216 Oct 18 00:10 LICENSE
+drwxr-xr-x 2 ngupta ngupta  4096 Oct 18 00:12 config
+drwxr-xr-x 3 ngupta ngupta  4096 Oct 18 00:12 bin
+drwxr-xr-x 2 ngupta ngupta  4096 Oct 18 00:12 site-docs
+drwxr-xr-x 2 ngupta ngupta  4096 Nov 12 02:39 libs
+ngupta@node1:~$ mv kafka_2.12-2.3.1 kafka
+ngupta@node1:~$ ls -lrt
+total 60916
+drwxr-xr-x 6 ngupta ngupta     4096 Oct 18 00:12 kafka
+-rw-rw-r-- 1 ngupta ngupta 62366158 Oct 24 21:25 kafka_2.12-2.3.1.tgz
+-rw-rw-r-- 1 ngupta ngupta     1253 Nov  7 05:24 zookeeper.sh
+ngupta@node1:~$ rm kafka_2.12-2.3.1.tgz
+ngupta@node1:~$
+```
+Node2
+```shell script
+ngupta@node2:~$ ls -lrt
+total 60908
+-rw-rw-r-- 1 ngupta ngupta 62366158 Nov 12 02:35 kafka_2.12-2.3.1.tgz
+ngupta@node2:~$ tar -xzf kafka_2.12-2.3.1.tgz
+ngupta@node2:~$ ls -lrt
+total 60912
+drwxr-xr-x 6 ngupta ngupta     4096 Oct 18 00:12 kafka_2.12-2.3.1
+-rw-rw-r-- 1 ngupta ngupta 62366158 Nov 12 02:35 kafka_2.12-2.3.1.tgz
+ngupta@node2:~$ ls -lrt kafka_2.12-2.3.1
+total 52
+-rw-r--r-- 1 ngupta ngupta   337 Oct 18 00:10 NOTICE
+-rw-r--r-- 1 ngupta ngupta 32216 Oct 18 00:10 LICENSE
+drwxr-xr-x 2 ngupta ngupta  4096 Oct 18 00:12 config
+drwxr-xr-x 3 ngupta ngupta  4096 Oct 18 00:12 bin
+drwxr-xr-x 2 ngupta ngupta  4096 Oct 18 00:12 site-docs
+drwxr-xr-x 2 ngupta ngupta  4096 Nov 12 02:39 libs
+ngupta@node2:~$ mv kafka_2.12-2.3.1 kafka
+ngupta@node2:~$ ls -lrt
+total 60912
+drwxr-xr-x 6 ngupta ngupta     4096 Oct 18 00:12 kafka
+-rw-rw-r-- 1 ngupta ngupta 62366158 Nov 12 02:35 kafka_2.12-2.3.1.tgz
+ngupta@node2:~$ rm kafka_2.12-2.3.1.tgz
+ngupta@node2:~$
+```
+Node3
+```shell script
+ngupta@node3:~$ ls -lrt
+total 60908
+-rw-rw-r-- 1 ngupta ngupta 62366158 Nov 12 02:36 kafka_2.12-2.3.1.tgz
+ngupta@node3:~$ tar -xzf kafka_2.12-2.3.1.tgz
+ngupta@node3:~$ ls -lrt
+total 60912
+drwxr-xr-x 6 ngupta ngupta     4096 Oct 18 00:12 kafka_2.12-2.3.1
+-rw-rw-r-- 1 ngupta ngupta 62366158 Nov 12 02:36 kafka_2.12-2.3.1.tgz
+ngupta@node3:~$ ls -lrt kafka_2.12-2.3.1
+total 52
+-rw-r--r-- 1 ngupta ngupta   337 Oct 18 00:10 NOTICE
+-rw-r--r-- 1 ngupta ngupta 32216 Oct 18 00:10 LICENSE
+drwxr-xr-x 2 ngupta ngupta  4096 Oct 18 00:12 config
+drwxr-xr-x 3 ngupta ngupta  4096 Oct 18 00:12 bin
+drwxr-xr-x 2 ngupta ngupta  4096 Oct 18 00:12 site-docs
+drwxr-xr-x 2 ngupta ngupta  4096 Nov 12 02:39 libs
+ngupta@node3:~$ mv kafka_2.12-2.3.1 kafka
+ngupta@node3:~$ ls -lrt
+total 60912
+drwxr-xr-x 6 ngupta ngupta     4096 Oct 18 00:12 kafka
+-rw-rw-r-- 1 ngupta ngupta 62366158 Nov 12 02:36 kafka_2.12-2.3.1.tgz
+ngupta@node3:~$ rm kafka_2.12-2.3.1.tgz
+```
+
+* Copy the zookeeper script on all the servers and create the service for the zookeeper on each server.
+
+Node1
+```shell script
+ngupta@node1:~$ ls -lrt
+total 8
+drwxr-xr-x 6 ngupta ngupta 4096 Oct 18 00:12 kafka
+-rw-rw-r-- 1 ngupta ngupta 1236 Nov 12 02:44 zookeeper.sh
+ngupta@node1:~$ vi zookeeper.sh
+ngupta@node1:~$  ls /etc/init.d/
+acpid     console-setup.sh  dbus         irqbalance         lvm2           lxd             open-vm-tools  rsync           udev                 x11-common
+apparmor  cron              ebtables     iscsid             lvm2-lvmetad   mdadm           plymouth       rsyslog         ufw                  zookeeper.sh
+apport    cryptdisks        grub-common  keyboard-setup.sh  lvm2-lvmpolld  mdadm-waitidle  plymouth-log   screen-cleanup  unattended-upgrades
+atd       cryptdisks-early  hwclock.sh   kmod               lxcfs          open-iscsi      procps         ssh             uuidd
+ngupta@node1:~$ sudo chmod +x /etc/init.d/zookeeper.sh
+ngupta@node1:~$ sudo chown root:root /etc/init.d/zookeeper.sh
+ngupta@node1:~$  sudo update-rc.d zookeeper.sh defaults
+ngupta@node1:~$ sudo service zookeeper start
+ngupta@node1:~$ nc -vz localhost 2181
+Connection to localhost 2181 port [tcp/*] succeeded!
+ngupta@node1:~$ echo "ruok" | nc localhost 2181 ; echo
+imok
+ngupta@node1:~$ sudo service zookeeper stop
+ngupta@node1:~$  nc -vz localhost 2181
+nc: connect to localhost port 2181 (tcp) failed: Connection refused
+ngupta@node1:~$ scp zookeeper.sh ngupta@192.168.109.132:/home/ngupta
+ngupta@192.168.109.132's password:
+zookeeper.sh                                                                                                                 100% 1236   862.2KB/s   00:00
+ngupta@node1:~$ scp zookeeper.sh ngupta@192.168.109.133:/home/ngupta
+ngupta@192.168.109.133's password:
+zookeeper.sh                                                                                                                 100% 1236   699.5KB/s   00:00
+ngupta@node1:~$
+```
+We have copied the script to our other two servers. In the script we have updated the KAFKA_ROOT_PATH.
+
+Node2
+```shell script
+ngupta@node2:~$ ls -lrt
+total 8
+drwxr-xr-x 6 ngupta ngupta 4096 Oct 18 00:12 kafka
+-rw-rw-r-- 1 ngupta ngupta 1236 Nov 12 02:48 zookeeper.sh
+ngupta@node2:~$ sudo cp zookeeper.sh /etc/init.d/
+[sudo] password for ngupta:
+ngupta@node2:~$ ls /etc/init.d/
+acpid             grub-common        lxd             screen-cleanup
+apparmor          hwclock.sh         mdadm           ssh
+apport            irqbalance         mdadm-waitidle  udev
+atd               iscsid             open-iscsi      ufw
+console-setup.sh  keyboard-setup.sh  open-vm-tools   unattended-upgrades
+cron              kmod               plymouth        uuidd
+cryptdisks        lvm2               plymouth-log    x11-common
+cryptdisks-early  lvm2-lvmetad       procps          zookeeper.sh
+dbus              lvm2-lvmpolld      rsync
+ebtables          lxcfs              rsyslog
+ngupta@node2:~$ sudo chmod +x /etc/init.d/zookeeper.sh
+ngupta@node2:~$ sudo chown root:root /etc/init.d/zookeeper.sh
+ngupta@node2:~$ sudo update-rc.d zookeeper.sh defaults
+ngupta@node2:~$ sudo service zookeeper start
+ngupta@node2:~$  nc -vz localhost 2181
+Connection to localhost 2181 port [tcp/*] succeeded!
+ngupta@node2:~$ echo "ruok" | nc localhost 2181 ; echo
+imok
+ngupta@node2:~$ sudo service zookeeper stop
+ngupta@node2:~$ nc -vz localhost 2181
+nc: connect to localhost port 2181 (tcp) failed: Connection refused
+ngupta@node2:~$
+```
+
+Node3
+```shell script
+ngupta@node3:~$ ls -lrt
+total 8
+drwxr-xr-x 6 ngupta ngupta 4096 Oct 18 00:12 kafka
+-rw-rw-r-- 1 ngupta ngupta 1236 Nov 12 02:48 zookeeper.sh
+ngupta@node3:~$ sudo cp zookeeper.sh /etc/init.d/
+[sudo] password for ngupta:
+ngupta@node3:~$ ls /etc/init.d/
+acpid             grub-common        lxd             screen-cleanup
+apparmor          hwclock.sh         mdadm           ssh
+apport            irqbalance         mdadm-waitidle  udev
+atd               iscsid             open-iscsi      ufw
+console-setup.sh  keyboard-setup.sh  open-vm-tools   unattended-upgrades
+cron              kmod               plymouth        uuidd
+cryptdisks        lvm2               plymouth-log    x11-common
+cryptdisks-early  lvm2-lvmetad       procps          zookeeper.sh
+dbus              lvm2-lvmpolld      rsync
+ebtables          lxcfs              rsyslog
+ngupta@node3:~$ sudo chmod +x /etc/init.d/zookeeper.sh
+ngupta@node3:~$ sudo chown root:root /etc/init.d/zookeeper.sh
+ngupta@node3:~$ sudo update-rc.d zookeeper.sh defaults
+ngupta@node3:~$ sudo service zookeeper start
+ngupta@node3:~$  nc -vz localhost 2181
+Connection to localhost 2181 port [tcp/*] succeeded!
+ngupta@node3:~$ echo "ruok" | nc localhost 2181 ; echo
+imok
+ngupta@node3:~$ sudo service zookeeper stop
+ngupta@node3:~$ nc -vz localhost 2181
+nc: connect to localhost port 2181 (tcp) failed: Connection refused
+ngupta@node3:~$
+```
+
+So we have zookeeper running on each server, But they are still not in cluster. To start them as cluster we need to
+provide additional configuration.
+
+* Let's first check if each server is able to communicate with each other or not.
+
+Node1
+```shell script
+ngupta@node1:~$ sudo service zookeeper start
+ngupta@node1:~$ nc -vz 192.168.109.131 2181
+Connection to 192.168.109.131 2181 port [tcp/*] succeeded!
+ngupta@node1:~$ nc -vz 192.168.109.132 2181
+Connection to 192.168.109.132 2181 port [tcp/*] succeeded!
+ngupta@node1:~$ nc -vz 192.168.109.133 2181
+Connection to 192.168.109.133 2181 port [tcp/*] succeeded!
+ngupta@node1:~$ sudo service zookeeper stop
+```
+Node2
+```shell script
+ngupta@node2:~$ sudo service zookeeper start
+ngupta@node2:~$ nc -vz 192.168.109.131 2181
+Connection to 192.168.109.131 2181 port [tcp/*] succeeded!
+ngupta@node2:~$ nc -vz 192.168.109.132 2181
+Connection to 192.168.109.132 2181 port [tcp/*] succeeded!
+ngupta@node2:~$ nc -vz 192.168.109.133 2181
+Connection to 192.168.109.133 2181 port [tcp/*] succeeded!
+ngupta@node2:~$ sudo service zookeeper stop
+```
+Node3
+```shell script
+ngupta@node3:~$ sudo service zookeeper start
+ngupta@node3:~$ nc -vz 192.168.109.131 2181
+Connection to 192.168.109.131 2181 port [tcp/*] succeeded!
+ngupta@node3:~$ nc -vz 192.168.109.132 2181
+Connection to 192.168.109.132 2181 port [tcp/*] succeeded!
+ngupta@node3:~$ nc -vz 192.168.109.133 2181
+Connection to 192.168.109.133 2181 port [tcp/*] succeeded!
+ngupta@node3:~$ sudo service zookeeper stop
+```
+
+If your any server not able to connect to other one first check zookeeper service up on them properly If zookeeper 
+service is running and still not able to communicate check your network connection and network topology between your 
+machines.
+
+* Create data directory for the zookeeper on each of the server.
+
+Node1
+```shell script
+ngupta@node1:~$ sudo mkdir -p /data/zookeeper
+ngupta@node1:~$ ls -lrt /data/zookeeper/
+total 0
+ngupta@node1:~$ sudo chown -R ngupta:ngupta /data/
+ngupta@node1:~$ echo "1" > /data/zookeeper/myid
+ngupta@node1:~$ cat /data/zookeeper/myid
+1
+ngupta@node1:~$
+```
+Node2
+```shell script
+ngupta@node2:~$ sudo mkdir -p /data/zookeeper
+ngupta@node2:~$ ls -lrt /data/zookeeper/
+total 0
+ngupta@node2:~$ sudo chown -R ngupta:ngupta /data/
+ngupta@node2:~$
+ngupta@node2:~$ echo "2" > /data/zookeeper/myid
+ngupta@node2:~$ cat /data/zookeeper/myid
+2
+ngupta@node2:~$
+```
+Node3
+```shell script
+ngupta@node3:~$ sudo mkdir -p /data/zookeeper
+ngupta@node3:~$ ls -lrt /data/zookeeper/
+total 0
+ngupta@node3:~$ sudo chown -R ngupta:ngupta /data/
+ngupta@node3:~$
+ngupta@node3:~$ echo "3" > /data/zookeeper/myid
+ngupta@node3:~$ cat /data/zookeeper/myid
+3
+ngupta@node3:~$
+```
+
+Let's understand above lines. We have created the data directory for the zookeeper and then we have created one file
+myid in which we have written number, this myid file is used by zookeeper in cluster to uniquely identify the server.
+The id should be unique in cluster so make sure your each node have unique number not contradicting with other cluster id.
+
+* Create configuration for zookeeper cluster. We have created one configuration file which can be used for this course, 
+also you can use while setting up. You just need to update the data.dir and according to your cluster update server.x.
+
+We have copied this zookeeper.properties to our Node1.
+```shell script
+ngupta@node1:~$ vi zookeeper.properties
+ngupta@node1:~$ scp zookeeper.properties ngupta@192.168.109.132:/home/ngupta
+ngupta@192.168.109.132's password:
+zookeeper.properties                                                                                                         100%  802   357.4KB/s   00:00
+ngupta@node1:~$ scp zookeeper.properties ngupta@192.168.109.133:/home/ngupta
+ngupta@192.168.109.133's password:
+zookeeper.properties                                                                                                         100%  802   751.7KB/s   00:00
+ngupta@node1:~$ rm kafka/config/zookeeper.properties
+ngupta@node1:~$ cp zookeeper.properties kafka/config/
+ngupta@node1:~$ cat kafka/config/zookeeper.properties
+# the location to store the in-memory database snapshots and, unless specified otherwise, the transaction log of updates to the database.
+dataDir=/data/zookeeper
+# the port at which the clients will connect
+clientPort=2181
+# disable the per-ip limit on the number of connections since this is a non-production config
+maxClientCnxns=0
+# the basic time unit in milliseconds used by ZooKeeper. It is used to do heartbeats and the minimum session timeout will be twice the tickTime.
+tickTime=2000
+# The number of ticks that the initial synchronization phase can take
+initLimit=10
+# The number of ticks that can pass between
+# sending a request and getting an acknowledgement
+syncLimit=5
+# zoo servers
+server.1=192.168.109.131:2888:3888
+server.2=192.168.109.132:2888:3888
+server.3=192.168.109.133:2888:3888
+ngupta@node1:~$
+```
+As you can see we have updated our configuration for data directory and the server IPs of my cluster. You need update 
+this file as your configuration and network IPs. We also copied these file to Node 2 and Node 3 and have perform the
+same operations like below:
+
+Node2
+```shell script
+ngupta@node2:~$ ls -lrt
+total 12
+-rw-rw-r-- 1 ngupta ngupta 1236 Nov 12 02:48 zookeeper.sh
+drwxr-xr-x 7 ngupta ngupta 4096 Nov 12 02:51 kafka
+-rw-rw-r-- 1 ngupta ngupta  802 Nov 12 03:17 zookeeper.properties
+ngupta@node2:~$  rm kafka/config/zookeeper.properties
+ngupta@node2:~$ cp zookeeper.properties kafka/config/
+ngupta@node2:~$  cat kafka/config/zookeeper.properties
+# the location to store the in-memory database snapshots and, unless specified otherwise, the transaction log of updates to the database.
+dataDir=/data/zookeeper
+# the port at which the clients will connect
+clientPort=2181
+# disable the per-ip limit on the number of connections since this is a non-production config
+maxClientCnxns=0
+# the basic time unit in milliseconds used by ZooKeeper. It is used to do heartbeats and the minimum session timeout will be twice the tickTime.
+tickTime=2000
+# The number of ticks that the initial synchronization phase can take
+initLimit=10
+# The number of ticks that can pass between
+# sending a request and getting an acknowledgement
+syncLimit=5
+# zoo servers
+server.1=192.168.109.131:2888:3888
+server.2=192.168.109.132:2888:3888
+server.3=192.168.109.133:2888:3888
+ngupta@node2:~$
+```
+Node3
+```shell script
+ngupta@node3:~$ ls -lrt
+total 12
+-rw-rw-r-- 1 ngupta ngupta 1236 Nov 12 02:48 zookeeper.sh
+drwxr-xr-x 7 ngupta ngupta 4096 Nov 12 02:51 kafka
+-rw-rw-r-- 1 ngupta ngupta  802 Nov 12 03:17 zookeeper.properties
+ngupta@node3:~$  rm kafka/config/zookeeper.properties
+ngupta@node3:~$ cp zookeeper.properties kafka/config/
+ngupta@node3:~$  cat kafka/config/zookeeper.properties
+# the location to store the in-memory database snapshots and, unless specified otherwise, the transaction log of updates to the database.
+dataDir=/data/zookeeper
+# the port at which the clients will connect
+clientPort=2181
+# disable the per-ip limit on the number of connections since this is a non-production config
+maxClientCnxns=0
+# the basic time unit in milliseconds used by ZooKeeper. It is used to do heartbeats and the minimum session timeout will be twice the tickTime.
+tickTime=2000
+# The number of ticks that the initial synchronization phase can take
+initLimit=10
+# The number of ticks that can pass between
+# sending a request and getting an acknowledgement
+syncLimit=5
+# zoo servers
+server.1=192.168.109.131:2888:3888
+server.2=192.168.109.132:2888:3888
+server.3=192.168.109.133:2888:3888
+ngupta@node3:~$
+```
+
+* Let's start testing our cluster initially.
+
