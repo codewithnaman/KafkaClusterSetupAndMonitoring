@@ -5,6 +5,10 @@
     * [1.2 Zookeeper Single instance setup](#12-zookeeper-single-instance-setup)
     * [1.3 Zookeeper Cluster setup](#13-zookeeper-cluster-setup)
 
+* [Section : Tools setup for Zookeeper and Kafka]()
+    * [Zoo navigator setup]()
+    * [Netflix Exhibitor setup]()
+
 # Section 1 : Kafka Cluster setup
 In this section we are going to discuss below to setup a stable Kafka Cluster
 * Zookeeper Cluster
@@ -25,8 +29,19 @@ static IP or DNS which can resolve to our HOST. For current setup we have below 
 If you don't setup your IP static then it will create a problem in cluster every time you restart machine. To setup the 
 static ip edit below file in Ubuntu 18.04 and make your file look like below:
 ```yaml
-
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    ens33:
+     dhcp4: no
+     addresses: [192.168.109.132/24]
+     gateway4: 192.168.109.2
+     nameservers:
+       addresses: [192.168.109.2,8.8.8.8,8.8.4.4]
 ```
+In above my 192.168.109.132 is static IP for that machine, Please make sure it will be assigned to unique machine in
+your cluster.
 
 ## 1.1 Zookeeper Theory Part
 Let's first understand what a zookeeper is and what it does for us. 
@@ -1024,4 +1039,282 @@ ngupta@node3:~$
 ```
 
 * Let's start testing our cluster initially.
+When you start the cluster using command **bin/zookeeper-server-start.sh config/zookeeper.properties** then below will
+be output where you find.
+If you bring the just one server, it will be wait till other comes otherwise it will keep complaining like below:
+```text
+[2019-11-14 03:19:04,406] WARN Cannot open channel to 3 at election address /192.168.109.133:3888 (org.apache.zookeeper.server.quorum.QuorumCnxManager)
+java.net.ConnectException: Connection refused (Connection refused)
+        at java.net.PlainSocketImpl.socketConnect(Native Method)
+        at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:350)
+        at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:206)
+        at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:188)
+        at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:392)
+        at java.net.Socket.connect(Socket.java:589)
+        at org.apache.zookeeper.server.quorum.QuorumCnxManager.connectOne(QuorumCnxManager.java:558)
+        at org.apache.zookeeper.server.quorum.QuorumCnxManager.connectAll(QuorumCnxManager.java:610)
+        at org.apache.zookeeper.server.quorum.FastLeaderElection.lookForLeader(FastLeaderElection.java:838)
+        at org.apache.zookeeper.server.quorum.QuorumPeer.run(QuorumPeer.java:958)
+[2019-11-14 03:19:04,408] INFO Resolved hostname: 192.168.109.133 to address: /192.168.109.133 (org.apache.zookeeper.server.quorum.QuorumPeer)
+[2019-11-14 03:19:04,408] INFO Notification time out: 1600 (org.apache.zookeeper.server.quorum.FastLeaderElection)
+[2019-11-14 03:19:06,012] WARN Cannot open channel to 2 at election address /192.168.109.132:3888 (org.apache.zookeeper.server.quorum.QuorumCnxManager)
+java.net.ConnectException: Connection refused (Connection refused)
+        at java.net.PlainSocketImpl.socketConnect(Native Method)
+        at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:350)
+        at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:206)
+        at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:188)
+        at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:392)
+        at java.net.Socket.connect(Socket.java:589)
+        at org.apache.zookeeper.server.quorum.QuorumCnxManager.connectOne(QuorumCnxManager.java:558)
+        at org.apache.zookeeper.server.quorum.QuorumCnxManager.connectAll(QuorumCnxManager.java:610)
+        at org.apache.zookeeper.server.quorum.FastLeaderElection.lookForLeader(FastLeaderElection.java:838)
+        at org.apache.zookeeper.server.quorum.QuorumPeer.run(QuorumPeer.java:958)
+[2019-11-14 03:19:06,014] INFO Resolved hostname: 192.168.109.132 to address: /192.168.109.132 (org.apache.zookeeper.server.quorum.QuorumPeer)
+```
 
+So This will stop when you start at least 2 zookeeper servers, When you will start 3 zookeeper servers below will be 
+output on each node.
+
+Node1
+```text
+[2019-11-14 03:19:10,793] INFO Created server with tickTime 2000 minSessionTimeout 4000 maxSessionTimeout 40000 datadir /data/zookeeper/version-2 snapdir /data/zookeeper/version-2 (org.apache.zookeeper.server.ZooKeeperServer)
+[2019-11-14 03:19:10,798] INFO FOLLOWING - LEADER ELECTION TOOK - 7816 (org.apache.zookeeper.server.quorum.Learner)
+[2019-11-14 03:19:10,804] INFO Resolved hostname: 192.168.109.132 to address: /192.168.109.132 (org.apache.zookeeper.server.quorum.QuorumPeer)
+[2019-11-14 03:19:10,830] INFO Getting a snapshot from leader 0x200000000 (org.apache.zookeeper.server.quorum.Learner)
+[2019-11-14 03:19:10,837] INFO Snapshotting: 0x200000000 to /data/zookeeper/version-2/snapshot.200000000 (org.apache.zookeeper.server.persistence.FileTxnSnapLog)
+[2019-11-14 03:22:25,095] INFO Received connection request /192.168.109.133:32810 (org.apache.zookeeper.server.quorum.QuorumCnxManager)
+[2019-11-14 03:22:25,100] INFO Notification: 1 (message format version), 3 (n.leader), 0x0 (n.zxid), 0x1 (n.round), LOOKING (n.state), 3 (n.sid), 0x2 (n.peerEpoch) FOLLOWING (my state) (org.apache.zookeeper.server.quorum.FastLeaderElection)
+[2019-11-14 03:22:25,108] INFO Notification: 1 (message format version), 2 (n.leader), 0x200000000 (n.zxid), 0x1 (n.round), LOOKING (n.state), 3 (n.sid), 0x2 (n.peerEpoch) FOLLOWING (my state) (org.apache.zookeeper.server.quorum.FastLeaderElection)
+```
+Node2
+```text
+[2019-11-14 03:19:10,820] INFO Created server with tickTime 2000 minSessionTimeout 4000 maxSessionTimeout 40000 datadir /data/zookeeper/version-2 snapdir /data/zookeeper/version-2 (org.apache.zookeeper.server.ZooKeeperServer)
+ [2019-11-14 03:19:10,822] INFO LEADING - LEADER ELECTION TOOK - 250 (org.apache.zookeeper.server.quorum.Leader)
+ [2019-11-14 03:19:10,838] INFO Follower sid: 1 : info : org.apache.zookeeper.server.quorum.QuorumPeer$QuorumServer@59208aa6 (org.apache.zookeeper.server.quorum.LearnerHandler)
+ [2019-11-14 03:19:10,853] INFO Synchronizing with Follower sid: 1 maxCommittedLog=0x0 minCommittedLog=0x0 peerLastZxid=0x0 (org.apache.zookeeper.server.quorum.LearnerHandler)
+ [2019-11-14 03:19:10,853] INFO Sending SNAP (org.apache.zookeeper.server.quorum.LearnerHandler)
+ [2019-11-14 03:19:10,854] INFO Sending snapshot last zxid of peer is 0x0  zxid of leader is 0x300000000sent zxid of db as 0x200000000 (org.apache.zookeeper.server.quorum.LearnerHandler)
+ [2019-11-14 03:19:10,866] INFO Received NEWLEADER-ACK message from 1 (org.apache.zookeeper.server.quorum.LearnerHandler)
+ [2019-11-14 03:19:10,866] INFO Have quorum of supporters, sids: [ 1,2 ]; starting up and setting last processed zxid: 0x300000000 (org.apache.zookeeper.server.quorum.Leader)
+ [2019-11-14 03:22:25,127] INFO Received connection request /192.168.109.133:44966 (org.apache.zookeeper.server.quorum.QuorumCnxManager)
+ [2019-11-14 03:22:25,132] INFO Notification: 1 (message format version), 3 (n.leader), 0x0 (n.zxid), 0x1 (n.round), LOOKING (n.state), 3 (n.sid), 0x2 (n.peerEpoch) LEADING (my state) (org.apache.zookeeper.server.quorum.FastLeaderElection)
+ [2019-11-14 03:22:25,138] INFO Notification: 1 (message format version), 2 (n.leader), 0x200000000 (n.zxid), 0x1 (n.round), LOOKING (n.state), 3 (n.sid), 0x2 (n.peerEpoch) LEADING (my state) (org.apache.zookeeper.server.quorum.FastLeaderElection)
+ [2019-11-14 03:22:25,183] INFO Follower sid: 3 : info : org.apache.zookeeper.server.quorum.QuorumPeer$QuorumServer@5608852d (org.apache.zookeeper.server.quorum.LearnerHandler)
+ [2019-11-14 03:22:25,186] INFO Synchronizing with Follower sid: 3 maxCommittedLog=0x0 minCommittedLog=0x0 peerLastZxid=0x0 (org.apache.zookeeper.server.quorum.LearnerHandler)
+ [2019-11-14 03:22:25,186] INFO Sending SNAP (org.apache.zookeeper.server.quorum.LearnerHandler)
+ [2019-11-14 03:22:25,186] INFO Sending snapshot last zxid of peer is 0x0  zxid of leader is 0x300000000sent zxid of db as 0x300000000 (org.apache.zookeeper.server.quorum.LearnerHandler)
+ [2019-11-14 03:22:25,199] INFO Received NEWLEADER-ACK message from 3 (org.apache.zookeeper.server.quorum.LearnerHandler)
+```
+Node3
+```text
+[2019-11-14 03:22:25,161] INFO Created server with tickTime 2000 minSessionTimeout 4000 maxSessionTimeout 40000 datadir /data/zookeeper/version-2 snapdir /data/zookeeper/version-2 (org.apache.zookeeper.server.ZooKeeperServer)
+[2019-11-14 03:22:25,162] INFO FOLLOWING - LEADER ELECTION TOOK - 56 (org.apache.zookeeper.server.quorum.Learner)
+[2019-11-14 03:22:25,166] INFO Resolved hostname: 192.168.109.132 to address: /192.168.109.132 (org.apache.zookeeper.server.quorum.QuorumPeer)
+[2019-11-14 03:22:25,179] INFO Getting a snapshot from leader 0x300000000 (org.apache.zookeeper.server.quorum.Learner)
+[2019-11-14 03:22:25,183] INFO Snapshotting: 0x300000000 to /data/zookeeper/version-2/snapshot.300000000 (org.apache.zookeeper.server.persistence.FileTxnSnapLog)
+```
+So you can see in logs that the Node1 and Node3 are followers and Node2 is elected as leader. You can find these string
+"NEWLEADER-ACK" or "FOLLOWING - LEADER ELECTION TOOK" in your logs to identify the leader and follower in your cluster.
+
+After bringing up the cluster using the command we tested that they are working fine,no running exception. Let's do the 
+four letter command check again and then we will stop and bring them up using service. 
+```shell script
+ngupta@node1:~$ echo "ruok" | nc 192.168.109.131 2181 ; echo
+imok
+ngupta@node1:~$ echo "ruok" | nc 192.168.109.132 2181 ; echo
+imok
+ngupta@node1:~$ echo "ruok" | nc 192.168.109.133 2181 ; echo
+imok
+```
+
+So our servers are healthy, we can start them as service. After starting the service double check with four letter 
+command.
+
+Let's talk about one more other four letter command which is stat, which gives the information about each zookeeper and 
+their mode. Below is the command and it's output.
+```shell script
+ngupta@node1:~$ echo "stat" | nc 192.168.109.131 2181 ; echo
+Zookeeper version: 3.4.14-4c25d480e66aadd371de8bd2fd8da255ac140bcf, built on 03/06/2019 16:18 GMT
+Clients:
+ /192.168.109.131:36884[0](queued=0,recved=1,sent=0)
+
+Latency min/avg/max: 0/0/0
+Received: 2
+Sent: 1
+Connections: 1
+Outstanding: 0
+Zxid: 0x200000000
+Mode: follower
+Node count: 4
+
+ngupta@node1:~$ echo "stat" | nc 192.168.109.132 2181 ; echo
+Zookeeper version: 3.4.14-4c25d480e66aadd371de8bd2fd8da255ac140bcf, built on 03/06/2019 16:18 GMT
+Clients:
+ /192.168.109.131:35366[0](queued=0,recved=1,sent=0)
+
+Latency min/avg/max: 0/0/0
+Received: 2
+Sent: 1
+Connections: 1
+Outstanding: 0
+Zxid: 0x400000000
+Mode: leader
+Node count: 4
+Proposal sizes last/min/max: -1/-1/-1
+
+ngupta@node1:~$ echo "stat" | nc 192.168.109.133 2181 ; echo
+Zookeeper version: 3.4.14-4c25d480e66aadd371de8bd2fd8da255ac140bcf, built on 03/06/2019 16:18 GMT
+Clients:
+ /192.168.109.131:56712[0](queued=0,recved=1,sent=0)
+
+Latency min/avg/max: 0/0/0
+Received: 4
+Sent: 3
+Connections: 1
+Outstanding: 0
+Zxid: 0x400000000
+Mode: follower
+Node count: 4
+```
+
+So it will show you the latency for my case because I am doing in multiple VMs on same machine it is 0. When you go out 
+in production it will be important parameter to see. You can see 131 and 133 are in follower mode and 132 is act as
+leader in our quorum.
+
+Let's open the zookeeper shell window and perform the operation which we did in previous section.
+
+Node1
+```shell script
+ngupta@node1:~/kafka$ bin/zookeeper-shell.sh 192.168.109.131:2181
+Connecting to 192.168.109.131:2181
+Welcome to ZooKeeper!
+JLine support is disabled
+
+WATCHER::
+
+WatchedEvent state:SyncConnected type:None path:null
+ls
+ls /
+[zookeeper]
+create /my-node "This is temp node"
+Created /my-node
+set /my-node "This is changed data"
+cZxid = 0x400000008
+ctime = Thu Nov 14 03:39:08 UTC 2019
+mZxid = 0x400000009
+mtime = Thu Nov 14 03:39:51 UTC 2019
+pZxid = 0x400000008
+cversion = 0
+dataVersion = 1
+aclVersion = 0
+ephemeralOwner = 0x0
+dataLength = 20
+numChildren = 0
+rmr /my-node
+```
+Node2
+```shell script
+ngupta@node2:~/kafka$ bin/zookeeper-shell.sh 192.168.109.132:2181
+Connecting to 192.168.109.132:2181
+Welcome to ZooKeeper!
+JLine support is disabled
+
+WATCHER::
+
+WatchedEvent state:SyncConnected type:None path:null
+ls
+ls /
+[zookeeper, my-node]
+```
+Node3
+```shell script
+ngupta@node3:~/kafka$ bin/zookeeper-shell.sh 192.168.109.133:2181
+Connecting to 192.168.109.133:2181
+Welcome to ZooKeeper!
+JLine support is disabled
+
+WATCHER::
+
+WatchedEvent state:SyncConnected type:None path:null
+get /my-node
+This is temp node
+cZxid = 0x400000008
+ctime = Thu Nov 14 03:39:08 UTC 2019
+mZxid = 0x400000008
+mtime = Thu Nov 14 03:39:08 UTC 2019
+pZxid = 0x400000008
+cversion = 0
+dataVersion = 0
+aclVersion = 0
+ephemeralOwner = 0x0
+dataLength = 17
+numChildren = 0
+get /my-node true
+This is temp node
+cZxid = 0x400000008
+ctime = Thu Nov 14 03:39:08 UTC 2019
+mZxid = 0x400000008
+mtime = Thu Nov 14 03:39:08 UTC 2019
+pZxid = 0x400000008
+cversion = 0
+dataVersion = 0
+aclVersion = 0
+ephemeralOwner = 0x0
+dataLength = 17
+numChildren = 0
+
+WATCHER::
+
+WatchedEvent state:SyncConnected type:NodeDataChanged path:/my-node
+```
+
+So our data is getting replicated to other servers as well. So our zookeeper is now in cluster and happy.
+
+### Four letter commands of zookeeper
+Till now we have seen two commands "ruok" and "stat" command to check status of zookeeper and a little bit their 
+information. Let's see more commands, there are several commands which you check [here](https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_zkCommands).
+Let's get started and see some of the commands and their output:
+
+* **echo "conf"| nc localhost 2181**
+
+This will print the server configuration we are using for our server like data directory, port etc.
+```shell script
+ngupta@node1:~/kafka$ echo "conf"| nc localhost 2181
+clientPort=2181
+dataDir=/data/zookeeper/version-2
+dataLogDir=/data/zookeeper/version-2
+tickTime=2000
+maxClientCnxns=0
+minSessionTimeout=4000
+maxSessionTimeout=40000
+serverId=1
+initLimit=10
+syncLimit=5
+electionAlg=3
+electionPort=3888
+quorumPort=2888
+peerType=0
+```
+* **echo "cons"| nc localhost 2181**
+
+List full connection/session details for all clients connected to this server with some more information like packet sent
+recieved.
+```shell script
+ngupta@node1:~/kafka$ echo "cons"| nc localhost 2181
+ /127.0.0.1:34454[0](queued=0,recved=1,sent=0)
+```
+ 
+You can the more commands provided in the link in this section start.  
+
+### Zookeeper performance
+* Zookeeper performance can be affected by the latency, so try to keep the latency as minimum as possible.
+* Use fast disk like SSD
+* No RAM swap, as we disable while setting up the cluster
+* Separate disk for the snapshots and logs
+* High Performance network, don't put the cluster spread over the globe, try to minimize the latency by putting them in 
+same data center, region.
+* Reasonable number of zookeeper as discussed in quorum sizing.
+* Isolation of the zookeeper instances from other processes, don't put the co-located zookeeper and kafka we are doing 
+for these lessons but for production try to put the zookeeper cluster apart from any of the processes.
+
+## 1.4 Kafka Cluster setup
