@@ -4,10 +4,17 @@
     * [1.1 Zookeeper Theory Part](#11-zookeeper-theory-part)
     * [1.2 Zookeeper Single instance setup](#12-zookeeper-single-instance-setup)
     * [1.3 Zookeeper Cluster setup](#13-zookeeper-cluster-setup)
+    * [1.4 Kafka Theory Part](#14-kafka-theory-part)
+    * [1.5 Kafka Single Instance setup](#15-kafka-single-instance-setup)
+    * [1.6 Kafka Cluster setup](#16-kafka-cluster-setup)
+    * [1.7 Kafka Configuration Detail](#17-kafka-performance-and-configuration-detail)
 
-* [Section : Tools setup for Zookeeper and Kafka]()
+* [Section 2 : Tools setup for Zookeeper and Kafka](#section-2--tools-setup-for-zookeeper-and-kafka)
     * [Zoo navigator setup]()
     * [Netflix Exhibitor setup]()
+    * [Kafka Manager]()
+    * [Kafka Topics UI]()
+
 
 # Section 1 : Kafka Cluster setup
 In this section we are going to discuss below to setup a stable Kafka Cluster
@@ -1317,4 +1324,675 @@ same data center, region.
 * Isolation of the zookeeper instances from other processes, don't put the co-located zookeeper and kafka we are doing 
 for these lessons but for production try to put the zookeeper cluster apart from any of the processes.
 
-## 1.4 Kafka Cluster setup
+## 1.4 Kafka Theory Part
+### Kafka Cluster/Quorum sizing
+<table>
+<tr>
+<th>Size 1</th>
+<th>Size 3</th>
+<th>Size 100</th>
+</tr>
+<tr>
+<td>
+
+* If the broker is restarted, the Kafka cluster is down.
+* The maximum replication factor for topics is 1.
+* All producer and consumer request go to same unique broker.
+* You can only scale vertically (by increasing the instance size and restarting)
+* Highly risky and only useful for development environment   
+</td>
+<td>
+
+* N-1 brokers can be down, where N is your replication factor for default topic.
+* Producer and consumer request are spread out between different machines
+* Data is spread out between brokers, which means less disk space is used per broker.
+</td>
+<td>
+
+* your cluster is fully distributed and can handle tremendous volumes even using commodity hardware.
+* Zookeeper may be under pressure because of many open connections, so you need to increase the Zookeeper instance 
+performance
+* Data is spread out between brokers, which means less disk space is used per broker.
+* Cluster management is full time job(make sure no broker act weirdly)
+* With cluster of size 100 we can have replication factor 4 or greater, but is recommended practice that keep it 3,
+if replication factor 4 or more then this would incur network communications within the brokers. So keep it 3.
+* Scale horizontally only when a bottleneck reached like network,disk,I/O, CPU, RAM
+</td>
+</tr>
+</table>
+
+### Kafka Configuration
+Kafka has more than 140 configuration parameter available. Only a few parameters are needed to get start. 
+But for production you can't go in one go, this is iterative process which tune your kafka using some configuration
+using parameters we set.
+* Kafka divided the parameter on the importance with level high,medium and low on parameter.
+* You will not get production ready kafka configuration in one go
+* Configuring Kafka is iterative process: behaviour changes over time based on usage and monitoring, so should your 
+configuration.
+
+Let's understand some parameter:
+
+* **broker.id(Number) :** Unique ID of broker in cluster.
+* **advertised.listeners(String) :** In basic we can have host name and port, later we will explore in depth this.
+* **delete.topic.enable(Boolean) :** Topic deletion enabled for the cluster.
+* **log.dirs(String) :** Data directory for kafka data.
+* **num.partitions(Number) :** Default number of partitions created for topic
+* **default.replication.factor(Number) :** Default replication factor for the topic.
+* **min.insync.replicas(Number) :** Number of ISR to have in order to minimize data loss.
+* **log.segment.bytes(Number) :** The maximum size of a log segment file. When this size is reached a new log segment 
+will be created.
+* **log.retention.check.interval.ms(Number) :** The interval at which log segments are checked to see if they can be 
+deleted according to the retention policies
+* **zookeeper.connect(String) :** Zookeeper cluster with root directory in zookeeper.
+* **zookeeper.connection.timeout.ms(Number) :** Timeout in ms for connecting to zookeeper
+* **auto.create.topics.enable(Boolean) :** Good for the development environment, it will create topic automatically if 
+not present. Set false in production.
+
+## 1.5 Kafka Single Instance setup
+We should have fastest I/O disk and used that for the Kafka like SSD. Use this fastest disk as mount in your machine and
+provide this path while setting up cluster configuration. For this lesson I am using local one which is available as our
+local system, But recommendation will be use NAS and use mount location for this.
+
+To setup kafka cluster we will do below steps:
+* Augment the file handle limits.
+* Launch Kafka on one machine
+* Setup Kafka as service.
+
+### Augment the file handle limits
+Kafka opens many files, so we don't want to kafka failure due to file handler. To augment file limit we will append
+below lines in /etc/security/limits.conf with hard limit and soft limit 100000. To perform below you can use vi as the 
+parameter is already set, or if does not exist or you have new server you can perform below:
+
+Node1
+```shell script
+ngupta@node1:~$ echo "* hard nofile 100000
+> * soft nofile 100000" | sudo tee --append /etc/security/limits.conf
+[sudo] password for ngupta:
+* hard nofile 100000
+* soft nofile 100000
+ngupta@node1:~$ cat /etc/security/limits.conf
+.
+.
+#@student        -       maxlogins       4
+ 
+ # End of file
+ * hard nofile 100000
+ * soft nofile 100000
+ ngupta@node1:~$
+```
+So we can see hard limit. To apply this limit we need to restart the server, so we will restart the server. Since we need
+to perform below step when we will setup the cluster, so I am doing this for other nodes too.
+
+Node2
+```shell script
+ngupta@node2:~$ echo "* hard nofile 100000
+> * soft nofile 100000" | sudo tee --append /etc/security/limits.conf
+[sudo] password for ngupta:
+* hard nofile 100000
+* soft nofile 100000
+ngupta@node2:~$ cat /etc/security/limits.conf
+.
+.
+#@student        -       maxlogins       4
+ 
+ # End of file
+ * hard nofile 100000
+ * soft nofile 100000
+ ngupta@node2:~$
+```
+Node3
+````shell script
+ngupta@node3:~$ echo "* hard nofile 100000
+> * soft nofile 100000" | sudo tee --append /etc/security/limits.conf
+[sudo] password for ngupta:
+* hard nofile 100000
+* soft nofile 100000
+ngupta@node3:~$ cat /etc/security/limits.conf
+.
+.
+#@student        -       maxlogins       4
+ 
+ # End of file
+ * hard nofile 100000
+ * soft nofile 100000
+ ngupta@node3:~$
+````
+
+### Launch Kafka on one machine
+Now to launch kafka let's copy the server.properties from here to your KAFKA_PATH/config folder. You need to update 
+below property with your machine values. 
+* advertised.listeners=PLAINTEXT://<YOUR_IP>:9092
+* log.dirs=<PATH_OF_KAFKA_DATA_DIR_YOU_CREATED>
+* zookeeper.connect=<YOUR_ZOOKEEPER_CLUSTER>
+
+For my operations I created the node1.properties which i am putting in kafka config directory. and then we will start 
+kafka.
+```shell script
+ngupta@node1:~$ sudo service zookeeper start
+[sudo] password for ngupta:
+ngupta@node1:~$ ls
+kafka  zookeeper.properties  zookeeper.sh
+ngupta@node1:~$ cd kafka/config/
+ngupta@node1:~/kafka/config$ ls
+connect-console-sink.properties    connect-file-sink.properties    connect-standalone.properties  node1.properties     tools-log4j.properties
+connect-console-source.properties  connect-file-source.properties  consumer.properties            producer.properties  trogdor.conf
+connect-distributed.properties     connect-log4j.properties        log4j.properties               server.properties    zookeeper.properties
+ngupta@node1:~/kafka/config$ rm server.properties
+ngupta@node1:~/kafka/config$ mv node1.properties server.properties
+ngupta@node1:~/kafka/config$ ls -lrt
+total 64
+-rw-r--r-- 1 ngupta ngupta 1169 Oct 18 00:10 trogdor.conf
+-rw-r--r-- 1 ngupta ngupta 1032 Oct 18 00:10 tools-log4j.properties
+-rw-r--r-- 1 ngupta ngupta 1925 Oct 18 00:10 producer.properties
+-rw-r--r-- 1 ngupta ngupta 4727 Oct 18 00:10 log4j.properties
+-rw-r--r-- 1 ngupta ngupta 1221 Oct 18 00:10 consumer.properties
+-rw-r--r-- 1 ngupta ngupta 2262 Oct 18 00:10 connect-standalone.properties
+-rw-r--r-- 1 ngupta ngupta 1552 Oct 18 00:10 connect-log4j.properties
+-rw-r--r-- 1 ngupta ngupta  881 Oct 18 00:10 connect-file-source.properties
+-rw-r--r-- 1 ngupta ngupta  883 Oct 18 00:10 connect-file-sink.properties
+-rw-r--r-- 1 ngupta ngupta 5321 Oct 18 00:10 connect-distributed.properties
+-rw-r--r-- 1 ngupta ngupta  909 Oct 18 00:10 connect-console-source.properties
+-rw-r--r-- 1 ngupta ngupta  906 Oct 18 00:10 connect-console-sink.properties
+-rw-rw-r-- 1 ngupta ngupta  802 Nov 12 03:18 zookeeper.properties
+-rw-rw-r-- 1 ngupta ngupta 2159 Nov 18 11:23 server.properties
+ngupta@node1:~/kafka/config$
+```
+
+We have copied configuration and now let's start kafka.
+```shell script
+ngupta@node1:~/kafka$ bin/kafka-server-start.sh config/server.properties
+.
+.
+.
+[2019-11-18 11:26:32,938] INFO Registered broker 1 at path /brokers/ids/1 with addresses: ArrayBuffer(EndPoint(192.168.109.131,9092,ListenerName(PLAINTEXT),PLAINTEXT)), czxid (broker epoch): 21474836507 (kafka.zk.KafkaZkClient)
+[2019-11-18 11:26:32,940] WARN No meta.properties file under dir /data/kafka/meta.properties (kafka.server.BrokerMetadataCheckpoint)
+[2019-11-18 11:26:33,121] INFO [ExpirationReaper-1-topic]: Starting (kafka.server.DelayedOperationPurgatory$ExpiredOperationReaper)
+[2019-11-18 11:26:33,146] INFO [ExpirationReaper-1-Heartbeat]: Starting (kafka.server.DelayedOperationPurgatory$ExpiredOperationReaper)
+[2019-11-18 11:26:33,151] INFO [ExpirationReaper-1-Rebalance]: Starting (kafka.server.DelayedOperationPurgatory$ExpiredOperationReaper)
+[2019-11-18 11:26:33,206] INFO Successfully created /controller_epoch with initial epoch 0 (kafka.zk.KafkaZkClient)
+[2019-11-18 11:26:33,276] INFO [GroupCoordinator 1]: Starting up. (kafka.coordinator.group.GroupCoordinator)
+[2019-11-18 11:26:33,294] INFO [GroupCoordinator 1]: Startup complete. (kafka.coordinator.group.GroupCoordinator)
+[2019-11-18 11:26:33,341] INFO [GroupMetadataManager brokerId=1] Removed 0 expired offsets in 42 milliseconds. (kafka.coordinator.group.GroupMetadataManager)
+[2019-11-18 11:26:33,370] INFO [ProducerId Manager 1]: Acquired new producerId block (brokerId:1,blockStartProducerId:0,blockEndProducerId:999) by writing to Zk with path version 1 (kafka.coordinator.transaction.ProducerIdManager)
+[2019-11-18 11:26:33,483] INFO [TransactionCoordinator id=1] Starting up. (kafka.coordinator.transaction.TransactionCoordinator)
+[2019-11-18 11:26:33,490] INFO [TransactionCoordinator id=1] Startup complete. (kafka.coordinator.transaction.TransactionCoordinator)
+[2019-11-18 11:26:33,511] INFO [Transaction Marker Channel Manager 1]: Starting (kafka.coordinator.transaction.TransactionMarkerChannelManager)
+[2019-11-18 11:26:33,790] INFO [/config/changes-event-process-thread]: Starting (kafka.common.ZkNodeChangeNotificationListener$ChangeEventProcessThread)
+[2019-11-18 11:26:33,832] INFO [SocketServer brokerId=1] Started data-plane processors for 1 acceptors (kafka.network.SocketServer)
+[2019-11-18 11:26:33,895] INFO Kafka version: 2.3.1 (org.apache.kafka.common.utils.AppInfoParser)
+[2019-11-18 11:26:33,896] INFO Kafka commitId: 18a913733fb71c01 (org.apache.kafka.common.utils.AppInfoParser)
+[2019-11-18 11:26:33,900] INFO Kafka startTimeMs: 1574076393840 (org.apache.kafka.common.utils.AppInfoParser)
+[2019-11-18 11:26:33,924] INFO [KafkaServer id=1] started (kafka.server.KafkaServer)
+```
+
+### Setup Kafka as service
+Now let's install kafka as service. So we will stop the running instance using Ctrl+C and then we will follow below steps:
+* Copy file [kafka.sh](scripts/kafka.sh) in etc/init.d/ location.
+* update KAFKA_ROOT_PATH property in kafka.sh file with your kafka folder.
+* Add executable permission in kafka script
+* Change owner of script to root.
+* Update the services
+* Start kafka
+* Test kafka port
+* Look into logs
+ ```shell script
+ngupta@node1:~$ ls
+kafka  kafka.sh  zookeeper.properties   zookeeper.sh
+ngupta@node1:~$ cp kafka.sh /etc/init.d/kafka.sh
+cp: cannot create regular file '/etc/init.d/kafka.sh': Permission denied
+ngupta@node1:~$ sudo cp kafka.sh /etc/init.d/kafka.sh
+ngupta@node1:~$ sudo vi /etc/init.d/kafka.sh
+ngupta@node1:~$ chmod +x /etc/init.d/kafka.sh
+chmod: changing permissions of '/etc/init.d/kafka.sh': Operation not permitted
+ngupta@node1:~$ sudo chmod +x /etc/init.d/kafka.sh
+ngupta@node1:~$ sudo chown root:root /etc/init.d/kafka.sh
+ngupta@node1:~$ sudo update-rc.d kafka.sh defaults
+ngupta@node1:~$ sudo service kafka start
+ngupta@node1:~$ nc -vz localhost 9092
+nc: connect to localhost port 9092 (tcp) failed: Connection refused
+ngupta@node1:~$ nc -vz localhost 9092
+nc: connect to localhost port 9092 (tcp) failed: Connection refused
+ngupta@node1:~$ nc -vz localhost 9092
+Connection to localhost 9092 port [tcp/*] succeeded!
+```
+
+It take few seconds to start and then our kafka broker is started successfully. If you are planning to use only
+single broker and hands-on please update min.insync.replicas to 1, otherwise you will be not able to perform produce
+and consume operation. If you are going to complete cluster setup follow next sections.
+
+## 1.6 Kafka Cluster setup
+To setup kafka in cluster, we are going to perform below steps:
+* Augment the file handle limits.
+* Edit configuration on each machine and make sure the broker ids are different also edit the advertiser listener AND 
+Setup kafka as service on each node
+* Launch cluster and observe the logs.
+* Look all the broker in zookeeper are registered
+* Test the cluster
+
+### Augment file handle
+We had done this in last section for our rest of two nodes as well and restarted server and zookeeper service.
+
+### Setup kafka service
+First we need to replace configuration in configuration directory and update broker id and advertise listener on each 
+server. I have did for this lesson setup in file [node2.properties](configurations/node2.properties) 
+and [node3.properties](configurations/node3.properties).
+We have copied these files on both server respectively.
+
+Node 2
+```shell script
+ngupta@node2:~/kafka/config$ ls
+connect-console-sink.properties    log4j.properties
+connect-console-source.properties  node2.properties
+connect-distributed.properties     producer.properties
+connect-file-sink.properties       server.properties
+connect-file-source.properties     tools-log4j.properties
+connect-log4j.properties           trogdor.conf
+connect-standalone.properties      zookeeper.properties
+consumer.properties
+ngupta@node2:~/kafka/config$ rm server.properties
+ngupta@node2:~/kafka/config$ mv node2.properties server.properties
+ngupta@node2:~/kafka/config$ mkdir /data/kafka
+ngupta@node2:~/kafka/config$ cd ..
+ngupta@node2:~/kafka$ cd ..
+ngupta@node2:~$ vi kafka.sh
+ngupta@node2:~$ sudo cp kafka.sh /etc/init.d/kafka.sh
+[sudo] password for ngupta:
+ngupta@node2:~$ sudo vi /etc/init.d/kafka.sh
+ngupta@node2:~$ chmod +x /etc/init.d/kafka.sh
+chmod: changing permissions of '/etc/init.d/kafka.sh': Operation not permitte                                                                                  d
+ngupta@node2:~$ sudo chmod +x /etc/init.d/kafka.sh
+ngupta@node2:~$ sudo chown root:root /etc/init.d/kafka.sh
+ngupta@node2:~$ sudo update-rc.d kafka.sh defaults
+ngupta@node2:~$ sudo service kafka start
+ngupta@node2:~$ nc -vz localhost 9092
+Connection to localhost 9092 port [tcp/*] succeeded!
+```
+Node 3
+```shell script
+ngupta@node3:~$ cd kafka/config/
+ngupta@node3:~/kafka/config$ ls
+connect-console-sink.properties    log4j.properties
+connect-console-source.properties  node3.properties
+connect-distributed.properties     producer.properties
+connect-file-sink.properties       server.properties
+connect-file-source.properties     tools-log4j.properties
+connect-log4j.properties           trogdor.conf
+connect-standalone.properties      zookeeper.properties
+consumer.properties
+ngupta@node3:~/kafka/config$ rm server.properties
+ngupta@node3:~/kafka/config$ mv node3.properties server.properties
+ngupta@node3:~/kafka/config$ mkdir /data/kafka
+ngupta@node3:~/kafka/config$ cd ..
+ngupta@node3:~/kafka$ cd ..
+ngupta@node3:~$ vi kafka.sh
+ngupta@node3:~$ sudo cp kafka.sh /etc/init.d/kafka.sh
+[sudo] password for ngupta:
+ngupta@node3:~$ sudo vi /etc/init.d/kafka.sh
+ngupta@node3:~$ sudo chmod +x /etc/init.d/kafka.sh
+ngupta@node3:~$ sudo chown root:root /etc/init.d/kafka.sh
+ngupta@node3:~$ sudo update-rc.d kafka.sh defaults
+ngupta@node3:~$ sudo service kafka start
+ngupta@node3:~$ nc -vz localhost 9092
+Connection to localhost 9092 port [tcp/*] succeeded!
+```
+
+### Observe the log
+We can see in server.log inside kafka/log/server.log that serves has been started.
+
+### Zookeeper broker registration verification
+```shell script
+ngupta@node1:~$ kafka/bin/zookeeper-shell.sh localhost:2181
+Connecting to localhost:2181
+Welcome to ZooKeeper!
+JLine support is disabled
+
+WATCHER::
+
+WatchedEvent state:SyncConnected type:None path:null
+ls /
+[zookeeper, kafka]
+ls /kafka
+[cluster, controller_epoch, controller, brokers, admin, isr_change_notification, consumers, log_dir_event_notification, latest_producer_id_block, config]
+ls /kafka/brokers
+[ids, topics, seqid]
+ls /kafka/brokers/ids
+[1, 2, 3]
+ls /kafka/brokers/ids/1
+[]
+get ls /kafka/brokers/ids
+Command failed: java.lang.IllegalArgumentException: Path must start with / character
+get /kafka/brokers/ids
+null
+cZxid = 0x500000008
+ctime = Mon Nov 18 11:26:27 UTC 2019
+mZxid = 0x500000008
+mtime = Mon Nov 18 11:26:27 UTC 2019
+pZxid = 0x5000000bd
+cversion = 17
+dataVersion = 0
+aclVersion = 0
+ephemeralOwner = 0x0
+dataLength = 0
+numChildren = 3
+get /kafka/brokers/ids/1
+{"listener_security_protocol_map":{"PLAINTEXT":"PLAINTEXT"},"endpoints":["PLAINTEXT://192.168.109.131:9092"],"jmx_port":-1,"host":"192.168.109.131","timestamp":"1574080739330","port":9092,"version":4}
+cZxid = 0x5000000bd
+ctime = Mon Nov 18 12:38:59 UTC 2019
+mZxid = 0x5000000bd
+mtime = Mon Nov 18 12:38:59 UTC 2019
+pZxid = 0x5000000bd
+cversion = 0
+dataVersion = 1
+aclVersion = 0
+ephemeralOwner = 0x3000007c12b0007
+dataLength = 200
+numChildren = 0
+```
+
+As we can see our brokers in kafka cluster node and when get the ode we get some information about the node.
+
+### Test the cluster
+Let's test our cluster. For testing the cluster we will follow below steps:
+* Create topic with replication factor of 3
+```shell script
+ngupta@node1:~/kafka$ bin/kafka-topics.sh --zookeeper 192.168.109.131:2181,192.168.109.132:2181,192.168.109.133:2181/kafka --create --topic test_topic --replication-factor 3 --partitions 3
+WARNING: Due to limitations in metric names, topics with a period ('.') or underscore ('_') could collide. To avoid issues it is best to use either, but not both.
+Created topic test_topic.
+ngupta@node1:~/kafka$ bin/kafka-topics.sh --zookeeper 192.168.109.131:2181,192.168.109.132:2181,192.168.109.133:2181/kafka --list
+test_topic
+```
+* Publish data to topic
+```shell script
+ngupta@node2:~/kafka$ bin/kafka-console-producer.sh --broker-list 192.168.109.131:9092,192.168.109.132:9092,192.168.109.133:9092 --topic test_topic
+>This is test data
+>for the cluster
+>please verify 3 lines should come
+
+```
+* Reading data from topic
+```shell script
+ngupta@node3:~/kafka$ bin/kafka-console-consumer.sh --bootstrap-server 192.168.109.131:9092,192.168.109.132:9092,192.168.109.133:9092 --topic test_topic --from-beginning
+
+This is test data
+please verify 3 lines should come
+for the cluster
+^CProcessed a total of 3 messages
+ngupta@node3:~/kafka$ bin/kafka-topics.sh --zookeeper 192.168.109.131:2181,192.168.109.132:2181,192.168.109.133:2181/kafka --describe --topic test_topic
+Topic:test_topic        PartitionCount:3        ReplicationFactor:3     Configs:
+        Topic: test_topic       Partition: 0    Leader: 2       Replicas: 2,3,1 Isr: 2,3,1
+        Topic: test_topic       Partition: 1    Leader: 3       Replicas: 3,1,2 Isr: 3,1,2
+        Topic: test_topic       Partition: 2    Leader: 1       Replicas: 1,2,3 Isr: 1,2,3
+ngupta@node3:~/kafka$
+
+```
+* Observe the kafka filesystem
+```shell script
+ngupta@node1:/data/kafka$ ls
+cleaner-offset-checkpoint  __consumer_offsets-17  __consumer_offsets-26  __consumer_offsets-35  __consumer_offsets-44  __consumer_offsets-9
+__consumer_offsets-0       __consumer_offsets-18  __consumer_offsets-27  __consumer_offsets-36  __consumer_offsets-45  log-start-offset-checkpoint
+__consumer_offsets-1       __consumer_offsets-19  __consumer_offsets-28  __consumer_offsets-37  __consumer_offsets-46  meta.properties
+__consumer_offsets-10      __consumer_offsets-2   __consumer_offsets-29  __consumer_offsets-38  __consumer_offsets-47  recovery-point-offset-checkpoint
+__consumer_offsets-11      __consumer_offsets-20  __consumer_offsets-3   __consumer_offsets-39  __consumer_offsets-48  replication-offset-checkpoint
+__consumer_offsets-12      __consumer_offsets-21  __consumer_offsets-30  __consumer_offsets-4   __consumer_offsets-49  test_topic-0
+__consumer_offsets-13      __consumer_offsets-22  __consumer_offsets-31  __consumer_offsets-40  __consumer_offsets-5   test_topic-1
+__consumer_offsets-14      __consumer_offsets-23  __consumer_offsets-32  __consumer_offsets-41  __consumer_offsets-6   test_topic-2
+__consumer_offsets-15      __consumer_offsets-24  __consumer_offsets-33  __consumer_offsets-42  __consumer_offsets-7
+__consumer_offsets-16      __consumer_offsets-25  __consumer_offsets-34  __consumer_offsets-43  __consumer_offsets-8
+```
+* Delete the topic
+```shell script
+ngupta@node2:~/kafka$ bin/kafka-topics.sh --zookeeper 192.168.109.131:2181,192.168.109.132:2181,192.168.109.133:2181/kafka --delete --topic test_topic
+Topic test_topic is marked for deletion.
+Note: This will have no impact if delete.topic.enable is not set to true.
+```
+## 1.7 Kafka Performance and Configuration Detail
+### Performance
+#### Disk: I/O
+* Kafka reads are done sequentially, therefore make sure you should a disk type that corresponds well to the requirements
+* Format your drives as XFS (easiest, no tuning required)
+* If read/write throughput is your bottleneck
+    * It is possible to mount multiple disks in parallel for kafka
+    * the config is log.dirs=/disk1/kafka-logs,/disk2/kafka-logs,/disk16/kafka-logs
+* Kafka performance is constant with regards to the amount of data stored in Kafka
+    * Make sure you expire data fast enough (default is one week)
+    * Make sure you monitor disk performance
+
+#### Network
+* Latency is key in Kafka
+    * Ensure your kafka instances are your Zookeeper instances are geographically close.
+    * Do not same cluster broker in different geolocation.
+* Network bandwidth is key in Kafka
+    * Network will be your bottleneck.
+    * Make sure you have enough bandwidth to handle many connections and TCP requests.
+    * Make sure your network is high performance
+* Monitor network usage too understand when it becomes a bottleneck.
+
+#### RAM
+* Kafka has amazing performance thanks to the OS page cache which utilizes your RAM.
+* Kafka uses java heap memory and rest of the free memory used by the OS page cache
+* We set the java heap and it's usage will increase when we increase number of partition on broker.
+* To set the java heap we set KAFKA_HEAP_OPTS environment variable.
+* Recommended that provide the java heap max to 4G and monitor your heap usage, when the number of partition will be 
+increased,you may need to increase the size of heap.
+* The remaining RAM will be used automatically for the Linux OS Page cache.
+* Never ever allocate all the memory as JVM heap, to solve performance problem.
+* This remaining RAM is used to buffer data to the disk and this is what gives Kafka an amazing performance.
+* Any un-used memory will be automatically be leveraged by the Linux operating system and assign memory to the page cache.
+* Make sure swapping is disabled for the Kafka entirely as we seen in zookeeper section.
+
+#### CPU
+* CPU is usually not a performance bottle neck in Kafka because Kafka doe not parse any messages, but can become one in
+some situations
+* If you have SSL enabled, Kafka has to encrypt and decrypt every payload, which adds load on the CPU
+* Compression can be CPU bound if you force Kafka to do it. Instead, if you send compressed data, make sure your producer
+and consumers are the ones doing the compression work(that's the default settings anyway).
+* Make sure you monitor Garbage collection over time to ensure the pauses are not too long.
+ 
+#### OS (Operation System)
+* Use Linux or Solaris, running production clusters on Windows is not recommended.
+* Increase the file descriptor limits (at least 100000 as a starting point)
+* Make sure only Kafka is running on your Operating System. Anything else will just slow down your machine.
+
+#### Others
+* Make sure you have enough file handles opened on your servers, as Kafka opens 3 file descriptor for each 
+topic-partition-segment that lives on the Broker.
+* Make sure you use Java 8
+* You may want to tune GC Implementation
+* Set Kafka quotas in order to prevent unexpected spikes in usage.
+
+### Configurations
+#### advertised.listeners
+Advertised listeners a key role in our kafka configuration, we need to think before setting up the value of this. Just 
+first understand when a client connects to kafka cluster below steps will be performed:
+* Client communicate with the server that it want to connect using provided IP
+* Then Kafka send a response as that you can connect but use my advertised hostname.
+* Kafka provide the advertised.host to client for forward communications.
+* Client try to connect kafka server using the IP it get in last step.
+
+Now let's understand what happend when we set advertised.listener to private IP, public IP and localhost.
+
+##### private IP set as advertised listener
+When the client is on same network, it will connect to server using public ip and private ip both. If we are trying to
+connect using public IP then kafka will return it's private IP and since client is on the same network it can communicate.
+
+When the client is on different network, then call will fail because when client connects using public IP then kafka provides
+the private IP set in advertised.listener and then client try to connect to kafka cluster with that IP, so it will try 
+connect in the same network and fails to connect.
+
+##### localhost set as advertised listener
+When we set the advertised.listener to localhost, then client want to connect to same machine. It will be good for the 
+client who are on same machine on which kafka is running. But it is recommended never ever set the advertised.listener
+to localhost.
+
+##### public IP as advertised listener
+When we set the advertised.listener to public IP the client can connect from same network or outside the network, But 
+please cautious about that public IP will be static otherwise your cluster will be screwed after each broker restart.
+
+We can use the DNS as well instead of ip for resolving host.
+
+#### Important configurations
+<table>
+<tr><th>Parameter</th><th>Parameter description and recommended value</th></tr>
+<tr><td>auto.create.topics.enable=true</td><td>set to false in production</td></tr>
+<tr><td>background.threads=10</td><td>increase if you have a good CPU</td></tr>
+<tr><td>delete.topic.enable=false</td><td>Your choice</td></tr>
+<tr><td>log.flush.interval.messages</td><td>Don't ever change. Let your OS do it</td></tr>
+<tr><td>log.retention.hours=168</td><td>Set according to your requirements</td></tr>
+<tr><td>message.max.bytes=100012</td><td>increase if you need more than 1 MB message</td></tr>
+<tr><td>min.insync.replicas=1</td><td>set to 2 if you want to be extra safe</td></tr>
+<tr><td>num.io.threads=8</td><td>Increase If your network io is a bottleneck</td></tr>
+<tr><td>num.network.threads=3</td><td>Increase If your network io is a bottleneck</td></tr>
+<tr><td>num.recovery.threads.per.data.dir=1</td><td>set to number of disks</td></tr>
+<tr><td>num.replica.fetchers=1</td><td>increase if your replicas are lagging</td></tr>
+<tr><td>offset.retention.minutes=1440</td><td>after 24 hours you lose offsets</td></tr>
+<tr><td>unclean.leader.election.enable=true</td><td>false if you don't want data loss</td></tr>
+<tr><td>zookeeper.session.timeout.ms=6000</td><td>Increase If you timeout often</td></tr>
+<tr><td>broker.rack=null</td><td>set your availability zone in AWS</td></tr>
+<tr><td>default.replication.factor=1</td><td>set to 2 or 3 in kafka cluster</td></tr>
+<tr><td>num.partition=1</td><td>set from 3 to 8 in your cluster</td></tr>
+<tr><td>quota.producer.default=10485760</td><td>Set quota to 10MBs</td></tr>
+<tr><td>quota.consumer.default=3</td><td>Set quota to 10MBs</td></tr>
+</table>
+
+
+# Section 2 : Tools setup for Zookeeper and Kafka
+For setting up upcoming tools I am using a different server which has IP 192.168.109.130, and hostname as DevAndTools 
+machine. Let's get started.
+## 2.1 Zoo navigator setup
+You can get zookeeper navigator [here](https://www.elkozmon.com/zoonavigator/), if you want to use docker image of the 
+Zoo navigator you can directly go to site and there are straight away instructions. But for locally we need to build the
+project and deploy in our HTTP server. Let's see how to do that:
+* Checkout projects
+* Install necessary tools npm and sbt
+* Build the projects
+
+### Checkout projects
+```shell script
+ngupta@devandtools:~$ mkdir KafkaTools
+ngupta@devandtools:~$ cd KafkaTools/
+ngupta@devandtools:~/KafkaTools$ mkdir Zookeeper
+ngupta@devandtools:~/KafkaTools$ cd Zookeeper/
+ngupta@devandtools:~/KafkaTools/Zookeeper$ ls -lrt
+total 0
+ngupta@devandtools:~/KafkaTools/Zookeeper$ mkdir ZooNav
+ngupta@devandtools:~/KafkaTools/Zookeeper$ cd ZooNav/
+ngupta@devandtools:~/KafkaTools/Zookeeper/ZooNav$ pwd
+/home/ngupta/KafkaTools/Zookeeper/ZooNav
+ngupta@devandtools:~/KafkaTools/Zookeeper/ZooNav$ git clone https://github.com/elkozmon/zoonavigator-api.git
+Cloning into 'zoonavigator-api'...
+remote: Enumerating objects: 151, done.
+remote: Counting objects: 100% (151/151), done.
+remote: Compressing objects: 100% (88/88), done.
+remote: Total 2658 (delta 55), reused 108 (delta 35), pack-reused 2507
+Receiving objects: 100% (2658/2658), 391.42 KiB | 692.00 KiB/s, done.
+Resolving deltas: 100% (1487/1487), done.
+ngupta@devandtools:~/KafkaTools/Zookeeper/ZooNav$ git clone https://github.com/elkozmon/zoonavigator-web.git
+Cloning into 'zoonavigator-web'...
+remote: Enumerating objects: 74, done.
+remote: Counting objects: 100% (74/74), done.
+remote: Compressing objects: 100% (50/50), done.
+remote: Total 3065 (delta 39), reused 41 (delta 22), pack-reused 2991
+Receiving objects: 100% (3065/3065), 1.11 MiB | 1.15 MiB/s, done.
+Resolving deltas: 100% (2354/2354), done.
+```
+### Install necessary tools npm and sbt
+```shell script
+ngupta@devandtools:~$ sudo apt install nodejs
+.
+.
+ngupta@devandtools:~$ nodejs --version
+v8.10.0
+ngupta@devandtools:~$ sudo apt install npm
+.
+.
+ngupta@devandtools:~$ npm --version
+3.5.2
+ngupta@devandtools:~$ echo "deb https://dl.bintray.com/sbt/debian /" | sudo tee -a /etc/apt/sources.list.d/sbt.list
+deb https://dl.bintray.com/sbt/debian /
+ngupta@devandtools:~$ curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" | sudo apt-key add
+OK
+ngupta@devandtools:~$ sudo apt-get update
+Hit:1 http://in.archive.ubuntu.com/ubuntu bionic InRelease
+Hit:2 http://in.archive.ubuntu.com/ubuntu bionic-updates InRelease
+Hit:3 http://in.archive.ubuntu.com/ubuntu bionic-backports InRelease
+Hit:4 http://in.archive.ubuntu.com/ubuntu bionic-security InRelease
+Ign:5 https://dl.bintray.com/sbt/debian  InRelease
+Get:6 https://dl.bintray.com/sbt/debian  Release [815 B]
+Get:7 https://dl.bintray.com/sbt/debian  Release.gpg [821 B]
+Get:8 https://dl.bintray.com/sbt/debian  Packages [3,674 B]
+Fetched 5,310 B in 3s (2,105 B/s)
+Reading package lists... Done
+ngupta@devandtools:~$sudo apt-get install sbt
+.
+.
+```
+### Build the projects
+```shell script
+ngupta@devandtools:~/KafkaTools/Zookeeper/ZooNav/zoonavigator-api$ sbt play/run
+[info] Loading settings for project zoonavigator-api-build from plugins.sbt ...
+[info] Loading project definition from /home/ngupta/KafkaTools/Zookeeper/ZooNav/zoonavigator-api/project
+[info] Loading settings for project zoonavigator-api from build.sbt ...
+[info] Set current project to zoonavigator-api (in build file:/home/ngupta/KafkaTools/Zookeeper/ZooNav/zoonavigator-api/)
+
+--- (Running the application, auto-reloading is enabled) ---
+
+[info] p.c.s.AkkaHttpServer - Listening for HTTP on /0:0:0:0:0:0:0:0:9000
+
+(Server started, use Enter to stop and go back to the console...)
+
+[info] play.api.Play - Application started (Dev) (no global state)
+[debug] curator - GET_DATA event completed with result code 0
+[debug] curator - GET_ACL event completed with result code 0
+[debug] curator - CHILDREN event completed with result code 0
+[debug] application - Closing connection to 192.168.109.131:2181,192.168.109.132:2181,192.168.109.133:2181. Cause: EXPIRED
+```
+```shell script
+ngupta@devandtools:~/KafkaTools/Zookeeper/ZooNav/zoonavigator-web$ npm install -g @angular/cli
+▌ ╢░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░╟
+loadRequestedDeps         ▌ ╢██████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░╟
+loadDep:uuid → resolveWit ▐ ╢██████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░╟
+loadDep:uuid → resolveWit ▄ ╢██████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░╟
+.
+.
+ngupta@devandtools:~/KafkaTools/Zookeeper/ZooNav/zoonavigator-web$ npm install
+npm WARN deprecated core-js@2.6.10: core-js@<3.0 is no longer maintained and not recommended for usage due to the number of issues. Please, upgrade your dependencies to the actual version of core-js@3.
+npm WARN deprecated graceful-fs@2.0.3: please upgrade to graceful-fs 4 for compatibility with current and future versions of Node.js
+npm WARN deprecated minimatch@0.2.14: Please update to minimatch 3.0.2 or higher to avoid a RegExp DoS issue
+npm WARN deprecated minimatch@0.3.0: Please update to minimatch 3.0.2 or higher to avoid a RegExp DoS issue
+ngupta@devandtools:~/KafkaTools/Zookeeper/ZooNav/zoonavigator-web$ npm run dev
+
+> zoonavigator-web@0.6.3-dev.1 dev /home/ngupta/KafkaTools/Zookeeper/ZooNav/zoonavigator-web
+> ng serve --host 0.0.0.0 --proxy-config proxy.conf.json
+
+WARNING: This is a simple server for use in testing or debugging Angular applications
+locally. It hasn't been reviewed for security issues.
+
+Binding this server to an open connection can result in compromising your application or
+computer. Using a different host than the one passed to the "--host" flag might result in
+websocket connection issues. You might need to use "--disableHostCheck" if that's the
+case.
+** Angular Live Development Server is listening on 0.0.0.0:4200, open your browser on http://localhost:4200/ **
+ 10% building 3/3 modules 0 activeℹ ｢wdm｣: wait until bundle finished: /                                                                                       Date: 2019-11-20T03:16:32.651Z
+Hash: ad4d524735f43bc59da5
+Time: 37890ms
+chunk {main} main.js, main.js.map (main) 565 kB [initial] [rendered]
+chunk {polyfills} polyfills.js, polyfills.js.map (polyfills) 332 kB [initial] [rendered]
+chunk {runtime} runtime.js, runtime.js.map (runtime) 6.08 kB [entry] [rendered]
+chunk {styles} styles.js, styles.js.map (styles) 2.32 MB [initial] [rendered]
+chunk {vendor} vendor.js, vendor.js.map (vendor) 9.65 MB [initial] [rendered]
+ℹ ｢wdm｣: Compiled successfully.
+```
+System has started, now we can see it on port UI on 4200. Below are some screenshot of UI.
+![Login](screenshot/ZooNavigator/ZooNavigator1.jpg)
+
+![Folder Structure](screenshot/ZooNavigator/ZooNavigtor2.jpg).
+
+provide connection string like 192.168.109.131:2181,192.168.109.132:2181,192.168.109.133:2181.
+
+## 2.2 Netflix Exhibitor setup
+
+## 2.3 Kafka Manager
+
+## 2.4 Kafka Topics UI
+
+
