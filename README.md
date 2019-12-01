@@ -10,8 +10,7 @@
     * [1.7 Kafka Configuration Detail](#17-kafka-performance-and-configuration-detail)
 
 * [Section 2 : Tools setup for Zookeeper and Kafka](#section-2--tools-setup-for-zookeeper-and-kafka)
-    * [Zoo navigator setup]()
-    * [Netflix Exhibitor setup]()
+    * [2.1 Zoo navigator setup](#21-zoo-navigator-setup)
     * [Kafka Manager]()
     * [Kafka Topics UI]()
 
@@ -1859,6 +1858,8 @@ We can use the DNS as well instead of ip for resolving host.
 For setting up upcoming tools I am using a different server which has IP 192.168.109.130, and hostname as DevAndTools 
 machine. Let's get started.
 ## 2.1 Zoo navigator setup
+Zoo navigator provides you UI based Zookeeper node CRUD operations and you can see your data easily. 
+
 You can get zookeeper navigator [here](https://www.elkozmon.com/zoonavigator/), if you want to use docker image of the 
 Zoo navigator you can directly go to site and there are straight away instructions. But for locally we need to build the
 project and deploy in our HTTP server. Let's see how to do that:
@@ -1985,14 +1986,75 @@ chunk {vendor} vendor.js, vendor.js.map (vendor) 9.65 MB [initial] [rendered]
 System has started, now we can see it on port UI on 4200. Below are some screenshot of UI.
 ![Login](screenshot/ZooNavigator/ZooNavigator1.jpg)
 
-![Folder Structure](screenshot/ZooNavigator/ZooNavigtor2.jpg).
+![Folder Structure](screenshot/ZooNavigator/ZooNavigtor2.jpg)
 
 provide connection string like 192.168.109.131:2181,192.168.109.132:2181,192.168.109.133:2181.
 
-## 2.2 Netflix Exhibitor setup
-
 ## 2.3 Kafka Manager
 
-## 2.4 Kafka Topics UI
+Kafka manager is developed by Yahoo. This will give us information about brokers, topic, ISR and much more. Let's start 
+setting up Kafka Manager.
 
+**This Also requires the Scala and Node JS to install, if Scala and Node is not install on the system where you are 
+planning to bring up kafka manager, please install these, for reference you can check installation steps for sbt and node 
+in last section.**
+
+#### Checking out the project
+```shell script
+ngupta@devandtools::~/Kafka/KafkaManager$ git clone https://github.com/yahoo/kafka-manager.git
+ngupta@devandtools::~/Kafka/KafkaManager$ mv kafka-manager/* .
+ngupta@devandtools::~/Kafka/KafkaManager$ rm -r kafka-manager
+```
+
+#### Building and running the project
+```shell script
+ngupta@devandtools:~/Kafka/KafkaManager$ ./sbt clean dist
+Downloading sbt launcher for 1.2.8:
+  From  http://repo.scala-sbt.org/scalasbt/maven-releases/org/scala-sbt/sbt-launch/1.2.8/sbt-launch.jar
+    To  /home/ngupta/.sbt/launchers/1.2.8/sbt-launch.jar
+Getting org.scala-sbt sbt 1.2.8  (this may take some time)...
+.
+.
+.
+[info] Packaging /home/ngupta/Kafka/KafkaManager/target/scala-2.12/kafka-manager_2.12-2.0.0.2-sans-externalized.jar ...
+[info] Done packaging.
+[success] All package validations passed
+[info] Your package is ready in /home/ngupta/Kafka/KafkaManager/target/universal/kafka-manager-2.0.0.2.zip
+[success] Total time: 170 s, completed Dec 1, 2019 8:07:06 AM
+ngupta@devandtools:~/Kafka/KafkaManager/target$ mkdir /home/ngupta/Kafka/kafka-manager
+ngupta@devandtools:~/Kafka/KafkaManager/target/universal$ pwd
+/home/ngupta/Kafka/KafkaManager/target/universal
+ngupta@devandtools:~/Kafka/KafkaManager/target/universal$ ls
+kafka-manager-2.0.0.2.zip  scripts
+ngupta@devandtools:~/Kafka/KafkaManager/target/universal$ cp -r * /home/ngupta/Kafka/kafka-manager/
+ngupta@devandtools:~/Kafka/kafka-manager$ pwd
+/home/ngupta/Kafka/kafka-manager
+ngupta@devandtools:~/Kafka/kafka-manager$ unzip kafka-manager-2.0.0.2.zip
+ngupta@devandtools:~/Kafka/kafka-manager$ ls
+kafka-manager-2.0.0.2  kafka-manager-2.0.0.2.zip
+ngupta@devandtools:~/Kafka/kafka-manager$ cd kafka-manager-2.0.0.2/
+ngupta@devandtools:~/Kafka/kafka-manager/kafka-manager-2.0.0.2$ vi conf/application.conf
+ngupta@devandtools:~/Kafka/kafka-manager/kafka-manager-2.0.0.2$ bin/kafka-manager
+2019-12-01 08:29:32,403 - [WARN] application - application.conf @ file:/home/ngupta/Kafka/kafka-manager/kafka-manager-2.0.0.2/conf/application.conf: 12: play.crypto.secret is deprecated, use play.http.secret.key instead
+2019-12-01 08:29:32,997 - [WARN] o.a.c.r.ExponentialBackoffRetry - maxRetries too large (100). Pinning to 29
+2019-12-01 08:29:33,208 - [INFO] k.m.a.KafkaManagerActor - Starting curator...
+2019-12-01 08:29:33,238 - [INFO] o.a.z.ZooKeeper - Client environment:zookeeper.version=3.4.13-2d71af4dbe22557fda74f9a9b4309b15a7487f03, built on 06/29/2018 00:39 GMT
+2019-12-01 08:29:33,239 - [INFO] o.a.z.ZooKeeper - Client environment:host.name=devandtools
+2019-12-01 08:29:33,240 - [INFO] o.a.z.ZooKeeper - Client environment:java.version=1.8.0_222
+.
+.
+.
+2019-12-01 08:29:33,363 - [INFO] o.a.z.ClientCnxn - Socket connection established to 192.168.109.131/192.168.109.131:2181, initiating session
+2019-12-01 08:29:33,387 - [INFO] o.a.z.ClientCnxn - Session establishment complete on server 192.168.109.131/192.168.109.131:2181, sessionid = 0x100001078650003, negotiated timeout = 40000
+2019-12-01 08:29:33,548 - [INFO] k.m.a.KafkaManagerActor - Started actor akka://kafka-manager-system/user/kafka-manager
+2019-12-01 08:29:33,552 - [INFO] k.m.a.KafkaManagerActor - Starting delete clusters path cache...
+2019-12-01 08:29:33,555 - [INFO] k.m.a.DeleteClusterActor - Started actor akka://kafka-manager-system/user/kafka-manager/delete-cluster
+```
+We have updated the zookeeper host in application conf after unzip. Now you can access the Kafka Manager on server's 9000
+port. Below are few screenshot from application :
+![Broker Information](screenshot/KafkaManager/Broker%20information.JPG)
+
+![Cluster Information](screenshot/KafkaManager/Cluster%20information.JPG)
+
+![Topic Information](screenshot/KafkaManager/Topic%20Information.JPG)
 
