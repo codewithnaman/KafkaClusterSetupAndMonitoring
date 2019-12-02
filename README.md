@@ -9,10 +9,15 @@
     * [1.6 Kafka Cluster setup](#16-kafka-cluster-setup)
     * [1.7 Kafka Configuration Detail](#17-kafka-performance-and-configuration-detail)
 
-* [Section 2 : Tools setup for Zookeeper and Kafka](#section-2--tools-setup-for-zookeeper-and-kafka)
+* [Section 2 : Admin Tools setup for Zookeeper and Kafka](#section-2--admin-tools-setup-for-zookeeper-and-kafka)
     * [2.1 Zoo navigator setup](#21-zoo-navigator-setup)
-    * [Kafka Manager]()
-    * [Kafka Topics UI]()
+    * [2.2 Kafka Manager](#22-kafka-manager)
+
+* [Section 3 : Monitoring Tools setup for Zookeeper and Kafka](#section-3--monitoring-tools-setup-for-zookeeper-and-kafka)
+    * [3.1 Kafka Monitor UI](#31-kafka-monitor-ui)
+    * [3.2 Prometheus setup for Zookeeper and Kafka](#32-prometheus-setup-for-zookeeper-and-kafka)
+
+
 
 
 # Section 1 : Kafka Cluster setup
@@ -1854,7 +1859,7 @@ We can use the DNS as well instead of ip for resolving host.
 </table>
 
 
-# Section 2 : Tools setup for Zookeeper and Kafka
+# Section 2 : Admin Tools setup for Zookeeper and Kafka
 For setting up upcoming tools I am using a different server which has IP 192.168.109.130, and hostname as DevAndTools 
 machine. Let's get started.
 ## 2.1 Zoo navigator setup
@@ -1990,7 +1995,7 @@ System has started, now we can see it on port UI on 4200. Below are some screens
 
 provide connection string like 192.168.109.131:2181,192.168.109.132:2181,192.168.109.133:2181.
 
-## 2.3 Kafka Manager
+## 2.2 Kafka Manager
 
 Kafka manager is developed by Yahoo. This will give us information about brokers, topic, ISR and much more. Let's start 
 setting up Kafka Manager.
@@ -2057,4 +2062,127 @@ port. Below are few screenshot from application :
 ![Cluster Information](screenshot/KafkaManager/Cluster%20information.JPG)
 
 ![Topic Information](screenshot/KafkaManager/Topic%20Information.JPG)
+
+# Section 3 : Monitoring Tools setup for Zookeeper and Kafka
+In the last section we have seen admin tools for the zookeeper and Kafka, Now we are going to see the solution which 
+will monitor Zookeeper and Kafka. Zookeeper and Kafka internal matrices is exposed by JMX. There are different vendors
+which uses this JMX and provide the matrices to monitor Kafka performance. For this we are going to use prometheus
+and Grafana to setup monitoring. There are various monitoring tools in the market like ELK stack, AppDynamics, New Relic
+and many more. You can choose according to your organization monitoring solution. Let first setup the Kafka Monitor UI.
+
+## 3.1 Kafka Monitor UI
+This Tool is developed by LinkedIn, and this provides us a UI to visualize a continuously running producer/consumer
+and measure end-to-end latency. Let's start setting up the Kafka UI.
+
+### Building and running the project
+We will checkout the project and build the jar for this. 
+```shell script
+ngupta@devandtools:~/Kafka$  git clone https://github.com/linkedin/kafka-monitor.git
+Cloning into 'kafka-monitor'...
+remote: Enumerating objects: 51, done.
+remote: Counting objects: 100% (51/51), done.
+remote: Compressing objects: 100% (41/41), done.
+remote: Total 1362 (delta 11), reused 16 (delta 2), pack-reused 1311
+Receiving objects: 100% (1362/1362), 662.17 KiB | 972.00 KiB/s, done.
+Resolving deltas: 100% (551/551), done.
+ngupta@devandtools:~/Kafka$  cd kafka-monitor
+ngupta@devandtools:~/Kafka/kafka-monitor$ ./gradlew jar
+Downloading https://services.gradle.org/distributions/gradle-5.2.1-all.zip
+...............................................................................................................................................................
+.
+.
+.
+Note: Recompile with -Xlint:unchecked for details.
+
+BUILD SUCCESSFUL in 6m 43s
+3 actionable tasks: 3 executed
+<-------------> 0% WAITING
+> IDLE
+ngupta@devandtools:~/Kafka/kafka-monitor$ vi config/kafka-monitor.properties
+ngupta@devandtools:~/Kafka/kafka-monitor$ ./bin/kafka-monitor-start.sh config/kafka-monitor.properties
+[2019-12-02 02:44:03,097] INFO MultiClusterTopicManagementServiceConfig values:
+        topic = kafka-monitor-topic
+        topic-management.preferred.leader.election.check.interval.ms = 300000
+        topic-management.rebalance.interval.ms = 600000
+.
+.
+.
+[2019-12-02 02:44:41,232] INFO ==============================================================
+kmf:type=kafka-monitor:offline-runnable-count=0.0
+kmf.services:name=single-cluster-monitor,type=produce-service:produce-availability-avg=1.0
+kmf.services:name=single-cluster-monitor,type=consume-service:consume-availability-avg=1.0
+kmf.services:name=single-cluster-monitor,type=produce-service:records-produced-total=414.0
+kmf.services:name=single-cluster-monitor,type=consume-service:records-consumed-total=219.0
+kmf.services:name=single-cluster-monitor,type=consume-service:records-lost-total=0.0
+kmf.services:name=single-cluster-monitor,type=consume-service:records-lost-rate=0.0
+kmf.services:name=single-cluster-monitor,type=consume-service:records-duplicated-total=0.0
+kmf.services:name=single-cluster-monitor,type=consume-service:records-delay-ms-avg=14.963470319634704
+kmf.services:name=single-cluster-monitor,type=produce-service:records-produced-rate=6.918333583997594
+kmf.services:name=single-cluster-monitor,type=produce-service:produce-error-rate=0.0
+kmf.services:name=single-cluster-monitor,type=consume-service:consume-error-rate=0.0
+ (com.linkedin.kmf.services.DefaultMetricsReporterService)
+
+```
+We have to edit the zookeeper host and kafka broker host in kafka-monitor.properties, so consumer and producer can work
+with them.
+ 
+After setting up this we get UI like below on 8000 port.
+
+![Kafka Monitor](screenshot/KafkaMonitor/Kafka%20Monitor.jpg)
+
+##3.2 Prometheus setup for Zookeeper and Kafka
+In this we are going to setup the monitoring for zookeeper and Kafka, So we will do below steps
+* Install JMX exporter agent on each Kafka Broker and Zookeeper
+* Install Prometheus on our DevTools server
+* View the data pulled in Prometheus
+
+Let's get started.
+
+### Install JMX exporter agent
+We have to copy few files from [link](https://github.com/prometheus/jmx_exporter), which will give us exporter and \
+configuration. Also one configuration file from example_configs of repo. Let's do it.
+```shell script
+ngupta@node1:~$ mkdir promethus
+ngupta@node1:~$ ls
+kafka  kafka.sh  promethus  zookeeper.properties  zookeeper.sh
+ngupta@node1:~$ cd promethus/
+ngupta@node1:~/promethus$ wget https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/0.12.0/jmx_prometheus_javaagent-0.12.0.jar
+--2019-12-02 03:09:13--  https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/0.12.0/jmx_prometheus_javaagent-0.12.0.jar
+Resolving repo1.maven.org (repo1.maven.org)... 151.101.40.209
+Connecting to repo1.maven.org (repo1.maven.org)|151.101.40.209|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 370075 (361K) [application/java-archive]
+Saving to: ‘jmx_prometheus_javaagent-0.12.0.jar’
+
+jmx_prometheus_javaagent-0.12.0.jar     100%[==============================================================================>] 361.40K   271KB/s    in 1.3s
+
+2019-12-02 03:09:15 (271 KB/s) - ‘jmx_prometheus_javaagent-0.12.0.jar’ saved [370075/370075]
+
+ngupta@node1:~/promethus$ wget https://raw.githubusercontent.com/prometheus/jmx_exporter/master/example_configs/kafka-2_0_0.yml
+--2019-12-02 03:29:37--  https://raw.githubusercontent.com/prometheus/jmx_exporter/master/example_configs/kafka-2_0_0.yml
+Resolving raw.githubusercontent.com (raw.githubusercontent.com)... 151.101.0.133, 151.101.64.133, 151.101.128.133, ...
+Connecting to raw.githubusercontent.com (raw.githubusercontent.com)|151.101.0.133|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 2785 (2.7K) [text/plain]
+Saving to: ‘kafka-2_0_0.yml’
+
+kafka-2_0_0.yml                         100%[==============================================================================>]   2.72K  --.-KB/s    in 0s
+
+2019-12-02 03:29:42 (23.3 MB/s) - ‘kafka-2_0_0.yml’ saved [2785/2785]
+ngupta@node1:~/promethus$ ls
+jmx_prometheus_javaagent-0.12.0.jar  kafka-2_0_0.yml
+ngupta@node1:~/promethus$
+```
+Now we have to add this java agent to kafka process. So we will change below in our script:
+```shell script
+export KAFKA_JMX_OPTS=-javaagent:/home/ngupta/promethus/jmx_prometheus_javaagent-0.12.0.jar=8080:/home/ngupta/promethus/kafka-2_0_0.yml
+```
+In this provide your javaagent and configuration path. Add repeat this step to all of your broker servers. This will give you metrics on 
+<server_ip>:8080.
+
+### Install Prometheus on our DevTools server
+DevTools server is our different server than the kafka broker and zookeeper. You can have your own server to setup the 
+admin tools and the monitoring setup. Let's install the prometheus on the server.
+
+
 
