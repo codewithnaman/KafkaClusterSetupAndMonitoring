@@ -2399,4 +2399,82 @@ ngupta@devandtools:~/prometheus$
 #### View the data pulled in Prometheus
 ![Promethus Zookeeper](screenshot/Promethus/Promethus_zookeeper.JPG)
 
-### Install Graphana and setup Dashboard
+### Install Grafana and setup Dashboard
+To get the grafana, You need to visit the [Grafana]() page and download the grafana binaries for linux. Then we will 
+setup data sources as prometheus and some dashboard, Let's get started.
+```shell script
+ngupta@devandtools:~$ wget https://dl.grafana.com/oss/release/grafana-6.5.1.linux-amd64.tar.gz
+--2019-12-05 12:19:29--  https://dl.grafana.com/oss/release/grafana-6.5.1.linux-amd64.tar.gz
+Resolving dl.grafana.com (dl.grafana.com)... 151.101.54.217, 2a04:4e42:a::729
+Connecting to dl.grafana.com (dl.grafana.com)|151.101.54.217|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 61013129 (58M) [application/x-tar]
+Saving to: ‘grafana-6.5.1.linux-amd64.tar.gz’
+
+grafana-6.5.1.linux-amd64.tar.gz        100%[==============================================================================>]  58.19M   341KB/s    in 2m 57s
+
+2019-12-05 12:22:28 (337 KB/s) - ‘grafana-6.5.1.linux-amd64.tar.gz’ saved [61013129/61013129]
+ngupta@devandtools:~$ tar -xzf grafana-6.5.1.linux-amd64.tar.gz
+ngupta@devandtools:~$ ls -lrt
+total 59596
+-rw-rw-r-- 1 ngupta ngupta 61013129 Nov 28 08:10 grafana-6.5.1.linux-amd64.tar.gz
+drwxrwxr-x 5 ngupta ngupta     4096 Dec  2 02:13 Kafka
+drwxr-xr-x 5 ngupta ngupta     4096 Dec  5 03:53 prometheus
+drwxrwxr-x 7 ngupta ngupta     4096 Dec  5 12:23 grafana-6.5.1
+ngupta@devandtools:~$ rm *.gz
+ngupta@devandtools:~$ mv grafana-6.5.1/ grafana
+ngupta@devandtools:~$ ls
+grafana  Kafka  prometheus
+ngupta@devandtools:~/grafana$ bin/grafana-server
+INFO[12-05|12:27:38] Starting Grafana                         logger=server version=6.5.1 commit=1763a0f branch=HEAD compiled=2019-11-28T07:43:49+0000
+INFO[12-05|12:27:38] Config loaded from                       logger=settings file=/home/ngupta/grafana/conf/defaults.ini
+INFO[12-05|12:27:38] Path Home                                logger=settings path=/home/ngupta/grafana
+INFO[12-05|12:27:38] Path Data                                logger=settings path=/home/ngupta/grafana/data
+.
+.
+.
+INFO[12-05|12:27:43] HTTP Server Listen                       logger=http.server address=[::]:3000 protocol=http subUrl= socket=
+INFO[12-05|12:27:43] Backend rendering via phantomJS          logger=rendering
+WARN[12-05|12:27:43] phantomJS is deprecated and will be removed in a future release. You should consider migrating from phantomJS to grafana-image-renderer plugin. logger=rendering
+
+```
+Now we can access the grafana on port 3000. Use admin/admin to login in grafana for first login, you can change password
+after login or keep as it is. After login you have some screen like below:
+![Grafana after login](screenshot/Grafana/Grafana%20after%20login.jpg)
+
+Let's setup the grafana as service for this you need to copy [grafana.service](scripts/grafana.service) file in directory
+"/etc/systemd/system/". Change the grafana path in file with your path, it is applicable for all the services and scripts
+till we have created. To start the service after creating the service use command "sudo systemctl start grafana".
+
+We need to add datasource first. Let's setup the datasource, below screenshots will show you how to setup datasource.
+
+* To create datasource click on gear icon on left and select datatsource. Then below screen will be shown:
+![Datasource Add Step1](screenshot/Grafana/Add%20Datasource%201.jpg)
+
+* Click on the Add Datasource then a page with various type of datasource will be shown, so search for pro and select 
+prometheus as datasource.
+![Datasource Add Step2](screenshot/Grafana/Add%20Datasource%202.jpg)
+
+* Now provide the promethus server ip and port url and save and test, you should have screen like below:
+![Datasource Add Step3](screenshot/Grafana/Add%20Datasource%203.jpg)
+
+Now we will import a basic dashboard for the kafka first and test that we are getting metrics. Let's import dashboard 
+from [link](https://grafana.com/grafana/dashboards/721). When you choose any dashboard after googling check for the data 
+source type the dashboard use, like for the link dashboard it is prometheus Highlighted in below screenshot. 
+![Dashboard datasource](screenshot/Grafana/Dashboard%20datasource.jpg)
+
+Let's import this dashboard in Grafana and see the dashboard.
+* To import a dashboard go to four square icon in left and click manage then below screen will appear.
+![Import Dashboard Step 1](screenshot/Grafana/Dashboard%20Import%20step%201.jpg)
+
+* Now click on import and provide the url as shown in below screenshot.
+![Import Dashboard Step 2](screenshot/Grafana/Dashboard%20Import%20step%203.jpg)
+
+* This will automatically resolve to below screen, you just need to select data source.
+![Import Dashboard Step 3](screenshot/Grafana/Dashboard%20Import%20step%203.jpg)
+
+* After importing this the dashboard will be appear like below.
+![Import Dashboard Step 4](screenshot/Grafana/Dashboard%20Import%20step%204.jpg)
+
+Using above steps you can import any dashboard.
+
