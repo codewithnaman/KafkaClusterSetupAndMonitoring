@@ -2132,13 +2132,14 @@ After setting up this we get UI like below on 8000 port.
 
 ##3.2 Prometheus setup for Zookeeper and Kafka
 In this we are going to setup the monitoring for zookeeper and Kafka, So we will do below steps
-* Install JMX exporter agent on each Kafka Broker and Zookeeper
+* Install JMX exporter agent on each Kafka Broker
 * Install Prometheus on our DevTools server
+* Install JMX exporter agent on each Zookeeper server
 * View the data pulled in Prometheus
 
 Let's get started.
 
-### Install JMX exporter agent
+### Install JMX exporter agent on Kafka broker
 We have to copy few files from [link](https://github.com/prometheus/jmx_exporter), which will give us exporter and \
 configuration. Also one configuration file from example_configs of repo. Let's do it.
 ```shell script
@@ -2183,6 +2184,219 @@ In this provide your javaagent and configuration path. Add repeat this step to a
 ### Install Prometheus on our DevTools server
 DevTools server is our different server than the kafka broker and zookeeper. You can have your own server to setup the 
 admin tools and the monitoring setup. Let's install the prometheus on the server.
+```shell script
+ngupta@devandtools:~$ wget https://github.com/prometheus/prometheus/releases/download/v2.14.0/prometheus-2.14.0.linux-amd64.tar.gz
+--2019-12-05 02:23:15--  https://github.com/prometheus/prometheus/releases/download/v2.14.0/prometheus-2.14.0.linux-amd64.tar.gz
+Resolving github.com (github.com)... 13.234.210.38
+Connecting to github.com (github.com)|13.234.210.38|:443... connected.
+HTTP request sent, awaiting response... 302 Found
+Location: https://github-production-release-asset-2e65be.s3.amazonaws.com/6838921/a4d9ad00-04a7-11ea-9761-3e7fd195c525?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIWNJYAX4CSVEH53A%2F20191205%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20191205T022315Z&X-Amz-Expires=300&X-Amz-Signature=04583ce45dd248f6327250aa3460a3f5e398ee5dd51127073f7c805ff9751f52&X-Amz-SignedHeaders=host&actor_id=0&response-content-disposition=attachment%3B%20filename%3Dprometheus-2.14.0.linux-amd64.tar.gz&response-content-type=application%2Foctet-stream [following]
+--2019-12-05 02:23:15--  https://github-production-release-asset-2e65be.s3.amazonaws.com/6838921/a4d9ad00-04a7-11ea-9761-3e7fd195c525?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIWNJYAX4CSVEH53A%2F20191205%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20191205T022315Z&X-Amz-Expires=300&X-Amz-Signature=04583ce45dd248f6327250aa3460a3f5e398ee5dd51127073f7c805ff9751f52&X-Amz-SignedHeaders=host&actor_id=0&response-content-disposition=attachment%3B%20filename%3Dprometheus-2.14.0.linux-amd64.tar.gz&response-content-type=application%2Foctet-stream
+Resolving github-production-release-asset-2e65be.s3.amazonaws.com (github-production-release-asset-2e65be.s3.amazonaws.com)... 52.217.46.52
+Connecting to github-production-release-asset-2e65be.s3.amazonaws.com (github-production-release-asset-2e65be.s3.amazonaws.com)|52.217.46.52|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 58625125 (56M) [application/octet-stream]
+Saving to: ‘prometheus-2.14.0.linux-amd64.tar.gz’
 
+prometheus-2.14.0.linux-amd64.tar.gz    100%[==============================================================================>]  55.91M   922KB/s    in 64s
 
+2019-12-05 02:24:21 (888 KB/s) - ‘prometheus-2.14.0.linux-amd64.tar.gz’ saved [58625125/58625125]
 
+ngupta@devandtools:~$ tar -xzf prometheus-2.14.0.linux-amd64.tar.gz
+ngupta@devandtools:~$ ls
+Kafka  prometheus-2.14.0.linux-amd64  prometheus-2.14.0.linux-amd64.tar.gz
+ngupta@devandtools:~$ mv prometheus-2.14.0.linux-amd64 prometheus
+ngupta@devandtools:~$ rm prometheus-2.14.0.linux-amd64.tar.gz
+ngupta@devandtools:~$ ls
+Kafka  prometheus
+ngupta@devandtools:~$ cd prometheus/
+ngupta@devandtools:~/prometheus$ vi prometheus.yml
+```
+Change prometheus.yml for pointing to our Kafka JMX url and scrape interval was 15 sec. which means prometheus will get
+the kafka metrics every 15 second and then the scrape config contains the job which need to run and from which url we 
+need to fetch metrics.
+```yaml
+# my global config
+global:
+  scrape_interval:     15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  # scrape_timeout is set to the global default (10s).
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets:
+      # - alertmanager:9093
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+# A scrape configuration containing exactly one endpoint to scrape:
+# Here it's Prometheus itself.
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  - job_name: 'prometheus'
+
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+
+    static_configs:
+    - targets: ['localhost:9090']
+
+  - job_name: 'kafka'
+
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+
+    static_configs:
+            - targets: ['192.168.109.131:8080','192.168.109.132:8080','192.168.109.133:8080']
+
+``` 
+Let's start prometheus.
+```shell script
+ngupta@devandtools:~/prometheus$ ./prometheus \
+>
+level=info ts=2019-12-05T02:31:57.009Z caller=main.go:296 msg="no time or size retention was set so using the default time retention" duration=15d
+level=info ts=2019-12-05T02:31:57.009Z caller=main.go:332 msg="Starting Prometheus" version="(version=2.14.0, branch=HEAD, revision=edeb7a44cbf745f1d8be4ea6f215e79e651bfe19)"
+level=info ts=2019-12-05T02:31:57.009Z caller=main.go:333 build_context="(go=go1.13.4, user=root@df2327081015, date=20191111-14:27:12)"
+level=info ts=2019-12-05T02:31:57.009Z caller=main.go:334 host_details="(Linux 4.15.0-70-generic #79-Ubuntu SMP Tue Nov 12 10:36:11 UTC 2019 x86_64 devandtools (none))"
+level=info ts=2019-12-05T02:31:57.012Z caller=main.go:335 fd_limits="(soft=1024, hard=1048576)"
+level=info ts=2019-12-05T02:31:57.012Z caller=main.go:336 vm_limits="(soft=unlimited, hard=unlimited)"
+level=info ts=2019-12-05T02:31:57.016Z caller=main.go:657 msg="Starting TSDB ..."
+level=info ts=2019-12-05T02:31:57.022Z caller=head.go:535 component=tsdb msg="replaying WAL, this may take awhile"
+level=info ts=2019-12-05T02:31:57.023Z caller=head.go:583 component=tsdb msg="WAL segment loaded" segment=0 maxSegment=0
+level=info ts=2019-12-05T02:31:57.025Z caller=main.go:672 fs_type=EXT4_SUPER_MAGIC
+level=info ts=2019-12-05T02:31:57.025Z caller=main.go:673 msg="TSDB started"
+level=info ts=2019-12-05T02:31:57.026Z caller=main.go:743 msg="Loading configuration file" filename=prometheus.yml
+level=info ts=2019-12-05T02:31:57.027Z caller=main.go:771 msg="Completed loading of configuration file" filename=prometheus.yml
+level=info ts=2019-12-05T02:31:57.017Z caller=web.go:496 component=web msg="Start listening for connections" address=0.0.0.0:9090
+level=info ts=2019-12-05T02:31:57.028Z caller=main.go:626 msg="Server is ready to receive web requests."
+```
+After starting the prometheus we can access the UI on 9090 port of the server. You can query your metrics there. Below is
+screenshot from prometheus.
+
+![Promethus](screenshot/Promethus/Promethus.JPG)
+
+#### Configure prometheus as service
+To configure the prometheus as service we have put the prometheus.service in folder "/etc/systemd/system/prometheus.service"
+```shell script
+ngupta@devandtools:~/prometheus$ sudo vi /etc/systemd/system/prometheus.service
+ngupta@devandtools:~/prometheus$ sudo systemctl start prometheus
+ngupta@devandtools:~/prometheus$ sudo systemctl status prometheus
+● prometheus.service - Prometheus Server
+   Loaded: loaded (/etc/systemd/system/prometheus.service; disabled; vendor preset: enabled)
+   Active: active (running) since Thu 2019-12-05 02:49:07 UTC; 4s ago
+     Docs: https://prometheus.io/docs/introduction/overview/
+ Main PID: 21017 (prometheus)
+    Tasks: 7 (limit: 4632)
+   CGroup: /system.slice/prometheus.service
+           └─21017 /home/ngupta/prometheus/prometheus --config.file=/home/ngupta/prometheus/prometheus.yml --storage.tsdb.path=/home/ngupta/prometheus/data
+
+Dec 05 02:49:07 devandtools prometheus[21017]: level=info ts=2019-12-05T02:49:07.220Z caller=main.go:657 msg="Starting TSDB ..."
+Dec 05 02:49:07 devandtools prometheus[21017]: level=info ts=2019-12-05T02:49:07.227Z caller=head.go:535 component=tsdb msg="replaying WAL, this may take awhil
+Dec 05 02:49:07 devandtools prometheus[21017]: level=info ts=2019-12-05T02:49:07.238Z caller=web.go:496 component=web msg="Start listening for connections" add
+Dec 05 02:49:07 devandtools prometheus[21017]: level=info ts=2019-12-05T02:49:07.364Z caller=head.go:583 component=tsdb msg="WAL segment loaded" segment=0 maxS
+Dec 05 02:49:07 devandtools prometheus[21017]: level=info ts=2019-12-05T02:49:07.364Z caller=head.go:583 component=tsdb msg="WAL segment loaded" segment=1 maxS
+Dec 05 02:49:07 devandtools prometheus[21017]: level=info ts=2019-12-05T02:49:07.372Z caller=main.go:672 fs_type=EXT4_SUPER_MAGIC
+Dec 05 02:49:07 devandtools prometheus[21017]: level=info ts=2019-12-05T02:49:07.372Z caller=main.go:673 msg="TSDB started"
+Dec 05 02:49:07 devandtools prometheus[21017]: level=info ts=2019-12-05T02:49:07.372Z caller=main.go:743 msg="Loading configuration file" filename=/home/ngupta
+Dec 05 02:49:07 devandtools prometheus[21017]: level=info ts=2019-12-05T02:49:07.374Z caller=main.go:771 msg="Completed loading of configuration file" filename
+Dec 05 02:49:07 devandtools prometheus[21017]: level=info ts=2019-12-05T02:49:07.374Z caller=main.go:626 msg="Server is ready to receive web requests."
+```
+
+#### Install JMX exporter agent on each Zookeeper server
+Now let's start to add this JMX agent with our zookeeper server. When our zookeeper server are not colocated then we will
+download JMX agent and the zookeeper.yaml file on those server and then attach javaagent with the zookeeper process.
+Since for this demo we co-located our kafka and zookeeper, we have already downloaded the JMX agent, we just need to
+download the zookeeper.yaml file and attach the agent with zookeeper process. Let's get started:
+```shell script
+ngupta@node1:~$ cd promethus/
+ngupta@node1:~/promethus$ ls -lrt
+total 368
+-rw-rw-r-- 1 ngupta ngupta 370075 Jul  4 14:40 jmx_prometheus_javaagent-0.12.0.jar
+-rw-rw-r-- 1 ngupta ngupta   2785 Dec  2 03:29 kafka-2_0_0.yml
+ngupta@node1:~/promethus$ wget https://raw.githubusercontent.com/prometheus/jmx_exporter/master/example_configs/zookeeper.yaml
+--2019-12-05 03:11:04--  https://raw.githubusercontent.com/prometheus/jmx_exporter/master/example_configs/zookeeper.yaml
+Resolving raw.githubusercontent.com (raw.githubusercontent.com)... 151.101.192.133, 151.101.128.133, 151.101.64.133, ...
+Connecting to raw.githubusercontent.com (raw.githubusercontent.com)|151.101.192.133|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 997 [text/plain]
+Saving to: ‘zookeeper.yaml’
+
+zookeeper.yaml                          100%[==============================================================================>]     997  --.-KB/s    in 0s
+
+2019-12-05 03:11:09 (41.1 MB/s) - ‘zookeeper.yaml’ saved [997/997]
+
+ngupta@node1:~/promethus$ sudo vi /etc/init.d/zookeeper.sh
+ngupta@node1:~/promethus$ sudo systemctl daemon-reload
+ngupta@node1:~/promethus$ sudo service zookeeper stop
+ngupta@node1:~/promethus$ sudo service zookeeper start
+ngupta@node1:~/promethus$ sudo service zookeeper status
+● zookeeper.service - SYSV: Standard script to start and stop zookeeper
+   Loaded: loaded (/etc/init.d/zookeeper.sh; generated)
+   Active: active (running) since Thu 2019-12-05 03:44:01 UTC; 3s ago
+     Docs: man:systemd-sysv-generator(8)
+  Process: 25003 ExecStart=/etc/init.d/zookeeper.sh start (code=exited, status=0/SUCCESS)
+    Tasks: 30 (limit: 2290)
+   CGroup: /system.slice/zookeeper.service
+           └─25319 java -Xmx512M -Xms512M -server -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent -
+
+Dec 05 03:44:01 node1 systemd[1]: Starting SYSV: Standard script to start and stop zookeeper...
+Dec 05 03:44:01 node1 zookeeper.sh[25003]: Starting zookeeper
+Dec 05 03:44:01 node1 systemd[1]: Started SYSV: Standard script to start and stop zookeeper.
+lines 1-12/12 (END)
+ngupta@node1:~/promethus$ 
+```
+we need to put below line in our service start script.
+```text
+export KAFKA_JMX_OPTS="-javaagent:/home/ngupta/promethus/jmx_prometheus_javaagent-0.12.0.jar=8081:/home/ngupta/promethus/zookeeper.yaml"
+```
+You can get latest configuration from the below link:
+
+https://github.com/prometheus/jmx_exporter
+
+We need to repeat above steps for all of our zookeeper servers. After this we need to add one more scrape config in 
+prometheus on devtools server. Let's add below scrape config on our prometheus sever.
+```text
+  - job_name: 'zookeeper'
+
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+
+    static_configs:
+            - targets: ['192.168.109.131:8081','192.168.109.132:8081','192.168.109.133:8081']
+```
+```shell script
+ngupta@devandtools:~/prometheus$ vi prometheus.yml
+ngupta@devandtools:~/prometheus$ sudo systemctl restart prometheus
+[sudo] password for ngupta:
+ngupta@devandtools:~/prometheus$ sudo systemctl status prometheus
+● prometheus.service - Prometheus Server
+   Loaded: loaded (/etc/systemd/system/prometheus.service; disabled; vendor preset: enabled)
+   Active: active (running) since Thu 2019-12-05 03:54:37 UTC; 5s ago
+     Docs: https://prometheus.io/docs/introduction/overview/
+ Main PID: 21096 (prometheus)
+    Tasks: 7 (limit: 4632)
+   CGroup: /system.slice/prometheus.service
+           └─21096 /home/ngupta/prometheus/prometheus --config.file=/home/ngupta/prometheus/prometheus.yml --storage.tsdb.path=/home/ngupta/prometheus/data
+
+Dec 05 03:54:37 devandtools prometheus[21096]: level=info ts=2019-12-05T03:54:37.541Z caller=head.go:535 component=tsdb msg="replaying WAL, this may take awhil
+Dec 05 03:54:37 devandtools prometheus[21096]: level=info ts=2019-12-05T03:54:37.561Z caller=web.go:496 component=web msg="Start listening for connections" add
+Dec 05 03:54:37 devandtools prometheus[21096]: level=info ts=2019-12-05T03:54:37.685Z caller=head.go:583 component=tsdb msg="WAL segment loaded" segment=0 maxS
+Dec 05 03:54:38 devandtools prometheus[21096]: level=info ts=2019-12-05T03:54:38.387Z caller=head.go:583 component=tsdb msg="WAL segment loaded" segment=1 maxS
+Dec 05 03:54:38 devandtools prometheus[21096]: level=info ts=2019-12-05T03:54:38.388Z caller=head.go:583 component=tsdb msg="WAL segment loaded" segment=2 maxS
+Dec 05 03:54:38 devandtools prometheus[21096]: level=info ts=2019-12-05T03:54:38.397Z caller=main.go:672 fs_type=EXT4_SUPER_MAGIC
+Dec 05 03:54:38 devandtools prometheus[21096]: level=info ts=2019-12-05T03:54:38.398Z caller=main.go:673 msg="TSDB started"
+Dec 05 03:54:38 devandtools prometheus[21096]: level=info ts=2019-12-05T03:54:38.398Z caller=main.go:743 msg="Loading configuration file" filename=/home/ngupta
+Dec 05 03:54:38 devandtools prometheus[21096]: level=info ts=2019-12-05T03:54:38.399Z caller=main.go:771 msg="Completed loading of configuration file" filename
+Dec 05 03:54:38 devandtools prometheus[21096]: level=info ts=2019-12-05T03:54:38.400Z caller=main.go:626 msg="Server is ready to receive web requests."
+lines 1-19/19 (END)
+ngupta@devandtools:~/prometheus$
+```
+#### View the data pulled in Prometheus
+![Promethus Zookeeper](screenshot/Promethus/Promethus_zookeeper.JPG)
+
+### Install Graphana and setup Dashboard
