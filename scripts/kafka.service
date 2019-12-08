@@ -6,7 +6,7 @@ After=network.target
 User=ngupta
 Group=ngupta
 Environment="KAFKA_HEAP_OPTS=-Xmx256M -Xms128M"
-Environment="KAFKA_OPTS=-javaagent:/home/ngupta/prometheus/jmx_prometheus_javaagent-0.3.1.jar=8080:/home/ngupta/prometheus/kafka-0-8-2.yml"
+Environment="KAFKA_JMX_OPTS=-javaagent:/home/ngupta/promethus/jmx_prometheus_javaagent-0.12.0.jar=8080:/home/ngupta/promethus/kafka-2_0_0.yml -javaagent:/home/ngupta/jolokia/jolokia-jvm-1.6.2-agent.jar=host=*"
 ExecStart=/home/ngupta/kafka/bin/kafka-server-start.sh /home/ngupta/kafka/config/server.properties
 SuccessExitStatus=143
 

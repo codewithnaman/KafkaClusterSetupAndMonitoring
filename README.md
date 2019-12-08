@@ -16,9 +16,7 @@
 * [Section 3 : Monitoring Tools setup for Zookeeper and Kafka](#section-3--monitoring-tools-setup-for-zookeeper-and-kafka)
     * [3.1 Kafka Monitor UI](#31-kafka-monitor-ui)
     * [3.2 Prometheus setup for Zookeeper and Kafka](#32-prometheus-setup-for-zookeeper-and-kafka)
-
-
-
+    * [3.3 Install Grafana and setup Dashboard](#33-install-grafana-and-setup-dashboard)
 
 # Section 1 : Kafka Cluster setup
 In this section we are going to discuss below to setup a stable Kafka Cluster
@@ -2399,7 +2397,7 @@ ngupta@devandtools:~/prometheus$
 #### View the data pulled in Prometheus
 ![Promethus Zookeeper](screenshot/Promethus/Promethus_zookeeper.JPG)
 
-### Install Grafana and setup Dashboard
+## 3.3 Install Grafana and setup Dashboard
 To get the grafana, You need to visit the [Grafana]() page and download the grafana binaries for linux. Then we will 
 setup data sources as prometheus and some dashboard, Let's get started.
 ```shell script
@@ -2476,5 +2474,8 @@ Let's import this dashboard in Grafana and see the dashboard.
 * After importing this the dashboard will be appear like below.
 ![Import Dashboard Step 4](screenshot/Grafana/Dashboard%20Import%20step%204.jpg)
 
-Using above steps you can import any dashboard.
+Using above steps you can import any dashboard. You can also create panels and provide your own formula to get the metrics
+on dashboard.
 
+To put this monitoring in production we need to take care of security and start up process according to your organization.
+Also it is better if we setup the Prometheus and Grafana in separate machine for Production.
