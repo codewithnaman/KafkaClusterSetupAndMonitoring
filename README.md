@@ -1,4 +1,4 @@
-# Kafka Cluster Setup, Monitoring setup and Operations
+# Kafka Cluster and Monitoring setup
 
 * [Section 1 : Kafka Cluster Setup](#section-1--kafka-cluster-setup)
     * [1.1 Zookeeper Theory Part](#11-zookeeper-theory-part)
@@ -19,7 +19,7 @@
     * [3.3 Install Grafana and setup Dashboard](#33-install-grafana-and-setup-dashboard)
 
 # Section 1 : Kafka Cluster setup
-In this section we are going to discuss below to setup a stable Kafka Cluster
+In this section we are going perform below steps to setup a stable Kafka cluster:
 * Zookeeper Cluster
 * Kafka Cluster
 * Proper replication factor
@@ -27,16 +27,19 @@ In this section we are going to discuss below to setup a stable Kafka Cluster
 * Administration tools
 * HA setting for the cluster
 
-For this course I am using three VMs, each has ubuntu 18.04 and Open JDK 8 install on it. For this course we will 
-setup zookeeper and kafka node on each of these three nodes. This is not recommended practice to setup Kafka and
-zookeeper co-located. So for this we have static IP setup has done each virtual machine, this is necessary to have
-static IP or DNS which can resolve to our HOST. For current setup we have below IP and node name respectively.
+For this course I am using three VMs, each has ubuntu 18.04 and Open JDK 8 install on it. We will setup zookeeper and 
+kafka on each of these three nodes. This is not recommended practice to setup Kafka and zookeeper co-located or I can say
+on one server for production. 
+
+We have done static IP setup has for each of virtual machine, this is necessary to have static IP or DNS which can 
+resolve to our HOST. For current setup we have below IP and node name respectively.
 * Node 1 - 192.168.109.131
 * Node 2 - 192.168.109.132
 * Node 3 - 192.168.109.133
 
-If you don't setup your IP static then it will create a problem in cluster every time you restart machine. To setup the 
-static ip edit below file in Ubuntu 18.04 and make your file look like below:
+If you don't setup your IP static then it will create a problem in cluster every time you restart machine, due to change 
+in IP assigned dynamically to machine. To setup the static ip we edit '/etc/netplan/*.yml' file in Ubuntu 18.04 and
+changed file like below:
 ```yaml
 network:
   version: 2
@@ -49,7 +52,7 @@ network:
      nameservers:
        addresses: [192.168.109.2,8.8.8.8,8.8.4.4]
 ```
-In above my 192.168.109.132 is static IP for that machine, Please make sure it will be assigned to unique machine in
+In above case 192.168.109.132 is static IP for that machine, Please make sure it will be assigned to unique machine in
 your cluster.
 
 ## 1.1 Zookeeper Theory Part
@@ -77,7 +80,7 @@ mechanism, where each broker sends the heartbeat to zookeeper, if after a partic
 heartbeat from a broker, it will declared as inactive or dead and remove from active brokers list.
 * Zookeeper maintain the list of topics, their configuration like partitions, replication factor, clean policy and 
 additional configuration.
-* Zookeeper also maintains the IST (in sync replicas) for partitions, Also in case any broker got disconnect then it will
+* Zookeeper also maintains the ISR (in sync replicas) for partitions, Also in case any broker got disconnect then it will
 perform the leader election for partition. The election is as fast the cluster can recover as fast in case of 
 the broker failure.
 * Zookeeper stores the Kafka cluster id which is randomly generated at 1st startup of cluster.
@@ -87,7 +90,7 @@ ACL of Topics, Consumer Groups and Users.
 ### Zookeeper Cluster/Quorum sizing
 * Zookeeper need to have a strict majority of servers up to form the strict majority when votes happen
 * There Zookeeper quorums have 1,3,5,7.... (2N+1) servers
-* So After this configuration our cluster can survive till N node go down, So in case of 3 it will be active till 2 server
+* Using this configuration our cluster can survive till N node go down, So in case of 3 it will be active till 2 server
 means 1 server can go down in case of 5 upto 2 server can go down and so on.
 * Now let's talk about which sizing is better for your different environment and their pros and cons
 <table>
@@ -158,12 +161,12 @@ server.1=zookeeper1:2888:3888
 server.2=zookeeper2:2888:3888
 server.3=zookeeper3:2888:3888
 ```
-As we can see the tickTime, initLimit and syncLimit play important role for synchronization and initialization that's
-why a performant network and machine is required for this.
+As we can see the tickTime, initLimit and syncLimit play important role for synchronization and initialization of zookeeper,
+that's why we need a performant network and machine for this.
 
 ## 1.2 Zookeeper Single instance setup
-For now we just start setting up our single instance of zookeeper to do this. For now I have just Linux machine which
-has Ubuntu 18.04. To start with setting up zookeeper we are going to perform below steps:
+For now we just start setting up our single instance of zookeeper. I have just Linux machine which has Ubuntu 18.04. 
+To start with setting up zookeeper we are going to perform below steps:
 * Install Open JDK 8 or Open JDK 11 or on your machine
 * Disable RAM Swap (As RAM swap is bad for Kafka and Zookeeper, due to RAM swap latency will be increased and it is not
 good for our cluster)
@@ -178,7 +181,7 @@ To install the JDK on your machine use below command on your machine:
 ```shell script
 ngupta@node1:~$ sudo apt-get install openjdk-8-jdk
 ```
-This will install the JDK on your machine, to test the JDK is installed or not your machine fire below command:
+This will install the JDK on your machine, to test the JDK is installed or not your machine use below command:
 ```shell script
 ngupta@node1:~$ java -version
 openjdk version "1.8.0_222"
@@ -186,8 +189,8 @@ OpenJDK Runtime Environment (build 1.8.0_222-8u222-b10-1ubuntu1~18.04.1-b10)
 OpenJDK 64-Bit Server VM (build 25.222-b10, mixed mode)
 ngupta@node1:~$
 ```
-So above output is showing that I have installed the JDK 8 version 1.8.0_222. The command will be differ for the different
-Linux flavour if you are not using Ubuntu, Google how to install the JDK for your Linux flavor and do it.
+So above output is showing that We have installed the JDK 8 version 1.8.0_222. The installation command will be differ 
+for the different Linux flavour if you are not using Ubuntu; Google how to install the JDK for your Linux flavor and do it.
 Now let's move to our next step.
 
 ### Disable RAM Swap
@@ -210,22 +213,23 @@ vm.swappiness = 60
 ngupta@node1:~$
 ```
 So it's current value is 60, But our desired value is 0 or 1, since most of the operating support the value 1 not 0; we 
-will set this up to 1. To setup the value for current session we will use the below command:
+will set this up to 1. To setup the value for current session we can use the below command:
 ```shell script
 ngupta@node1:~$ sudo sysctl vm.swappiness=1
 vm.swappiness = 1
 ngupta@node1:~$ sudo sysctl vm.swappiness
 vm.swappiness = 1
 ``` 
-In above command we set the value and checked it, but it is for the current session, if our machine get restart then it 
-will set to it's default value again. To setup this for machine we need to add the entry vm.swappiness = 1 to 
-/etc/sysctl.conf. To do this you can use vi editor or to append in last you can use below command:
+In above command we set the value and checked it, but it is for the current session; if our machine get restarted then it 
+will set to it's default value again. To setup vm.swappiness value 1 to for machine all the time; we need to add 
+entry "vm.swappiness = 1" in "/etc/sysctl.conf" file. To do this you can use vi editor or to append in last we can use
+below command:
 ```shell script
 ngupta@node1:~$ echo 'vm.swappiness=1' | sudo tee --append /etc/sysctl.conf
 ngupta@node1:~$ cat /etc/sysctl.conf |grep 'swappiness'
 vm.swappiness=1
 ```
-As you can see we have disabled the RAM swap. Now let's move to next step.
+As we can see RAM swap is disabled now and we set the vm.swappiness value to 1. Now let's move to next step.
 
 ### Download & Configure Zookeeper on the machine
 Zookeeper come as bundle with Kafka setup, so for Kafka setup we recommend to use the zookeeper which comes with the Kafka.
@@ -290,9 +294,9 @@ clientPort=2181
 # disable the per-ip limit on the number of connections since this is a non-production config
 maxClientCnxns=0
 ```
-As of now we are leaving this settings as it is now and start our zookeeper. Again these settings are not best suited for
-the production environment in later section I will explain what are setting you need to take care while setting the Zookeeper
-in production. Let's move to next step
+For now we we are not changing any configuration in above file and start our zookeeper. These settings are not best suited for
+the production environment in later section We will explain what are setting you need to take care while setting the Zookeeper
+in production. Let's move to next step and start zookeeper.
 
 ### Launch Zookeeper on the machine to test
 Now to launch the Zookeeper we need to execute below command:
@@ -305,7 +309,7 @@ ngupta@node1:~/kafka/kafka_2.12-2.3.0$ bin/zookeeper-server-start.sh config/zook
 [2019-11-07 04:07:16,156] INFO Using org.apache.zookeeper.server.NIOServerCnxnFactory as server connection factory (org.apache.zookeeper.server.ServerCnxnFactory)
 [2019-11-07 04:07:16,177] INFO binding to port 0.0.0.0/0.0.0.0:2181 (org.apache.zookeeper.server.NIOServerCnxnFactory)
 ```
-So your zookeeper started but it is in hand mode of the zookeeper, you can't give any further command from same window.
+As we can see zookeeper is started but it is in hand mode of the zookeeper, you can't give any further command from same window.
 Also when the window will be closed then zookeeper will go down, so Now we will start zookeeper in the background mode
 using below command
 ```shell script
@@ -313,7 +317,7 @@ ngupta@node1:~/kafka/kafka_2.12-2.3.0$ bin/zookeeper-server-start.sh -daemon con
 ngupta@node1:~/kafka/kafka_2.12-2.3.0$
 ```
 
-So zookeeper wil be run in the background. Let's test it by using some command on the zookeeper:
+Zookeeper will be run in the background. Let's test it by using some command on the zookeeper:
 ```shell script
 ngupta@node1:~/kafka/kafka_2.12-2.3.0$ bin/zookeeper-shell.sh localhost:2181
 Connecting to localhost:2181
@@ -329,14 +333,14 @@ ls /
 [zookeeper]
 ^Cngupta@node1:~/kafka/kafka_2.12-2.3.0$
 ```
-If you are getting the output on ls / as [zookeeper] then the zookeeper is good. We have one more method to test the
-zookeeper which comes from [Four letter words zookeeper command](https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_zkCommands)
+If you are getting the output of "ls /" command as "[zookeeper]" then the zookeeper is good. We have one more method to 
+test the zookeeper which comes from [Four letter words zookeeper command](https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_zkCommands)
 to test zookeeper.
 ```shell script
 ngupta@node1:~/kafka/kafka_2.12-2.3.0$ echo "ruok" | nc localhost 2181 ; echo
 imok
 ```
-so In this command we are sending the ruok("Are you OK?") command to zookeeper and in response zookeeper returning response
+In above command we are sending the ruok("Are you OK?") command to zookeeper and in response zookeeper returning response
 imok("I am OK").
 
 Now let's setup the zookeeper as service. 
@@ -345,9 +349,8 @@ Now let's setup the zookeeper as service.
 To register the zookeeper as service we need some script which can start,stop,restart our zookeeper server. I have kept
 one script with file name [zookeeper.sh](scripts/zookeeper.sh) in scripts folder to perform this. We will copy this script
 to our servers in the directory. You just need to update the KAFKA_ROOT_PATH in file with your path to kafka and then 
-copy this file to /etc/init.d. Since this is script we need to give the executable permission on this using chmod
-so we will do it. I have copied this file and edited with my kafka path in home directory, now we will copy to init.d
-directory.
+copy this file to /etc/init.d. Since this is script we need to give the executable permission on this using chmod. 
+I have copied this file and edited with my kafka path in home directory, now we will copy to init.d directory.
 ```shell script
 ngupta@node1:~$ pwd
 /home/ngupta
@@ -396,15 +399,16 @@ Nov 07 05:37:29 node1 systemd[1]: Stopping SYSV: Standard script to start and st
 Nov 07 05:37:29 node1 zookeeper.sh[5276]: Shutting down zookeeper
 Nov 07 05:37:29 node1 systemd[1]: Stopped SYSV: Standard script to start and stop zookeeper.
 ```
-so as you can see we have tested our service by starting,stopping and using four letter word command  followed by service
-status. and It is working. To check the logs just go to kafka directory and perform the less command on the the logs/zookeeper.out.
+We setup the zookeeper as a service and we have tested our service by starting,stopping and using four letter word 
+command followed by service status. And It is working. To check the logs just go to kafka directory and perform 
+the less command on the the logs/zookeeper.out.
 
 Now our zookeeper has been setup, let's get some hands-on on the zookeeper cli. This is not required for Kafka Cluster
 but it is good to have.
 
 ### Hands-on over Zookeeper CLI
 Let's understand and some of the commands we can use in Zookeeper with CLI, As written in above section this is not required
-but good to have. We will look below operations using the Zookeeper CLI. 
+but good to have. We will look below operations using the Zookeeper CLI:
 * Creating node/sub-nodes
 * Get/Set data for a node
 * Watch a node
@@ -431,11 +435,11 @@ Created /my-node
 ls /
 [zookeeper, my-node]
 ``` 
-As you can see in above script we entered in CLI then we had done ls to list all the nodes. Initially we did ls only
+As we can see in above script, we entered in CLI then we had done ls to list all the nodes. Initially we did ls only
 and we got no results as we were not querying the root. Then we created the node we need to provide the / character
-at start otherwise we get the error as you can see in above output. So when we had proper syntax like 
-"create /my-node "This is my-node node data" a node is created with data in it which we had provided. And when we
-query using "ls /" we can see our newly created node. Now let's create a sub node.
+at start otherwise we get the error as you can see in above output. When we provide proper syntax like 
+'create /my-node "This is my-node node data"' then a node is created with data. And when we query using "ls /" 
+we can see our newly created node. Now let's create a sub node.
 ```shell script
 create /my-node/sub-node1 "sub-node1 data"
 Created /my-node/sub-node1
@@ -462,7 +466,7 @@ numChildren = 0
 As you can see we have created twos sub nodes and we can see it's data.
 
 #### Get/Set data for a node
-To get your data from Zookeeper you need to fire the command get and path to node.
+To get your data from Zookeeper you need to use the command get and path to node.
 ```shell script
 get /my-node
 This is my-node node data
@@ -512,8 +516,8 @@ numChildren = 0
 ```
 
 #### Watch a node
-Let's watch the nodes, watching means whenever the data is updated on the node we will get an notification when we are
-watching on the data. To set the watch we need to pass one more argument with get which is true to watch as done below:
+Let's watch the nodes. Watching a node means whenever the data is updated on the node, we will get an notification. 
+To set the watch we need to pass one more argument with get which is true to watch the node as did below:
 
 ```shell script
 get /my-node true
@@ -561,7 +565,7 @@ numChildren = 0
 So when we start watching the node, using get /my-node true, and changed the data we get Watcher Event.
 
 #### Delete a node 
-To delete data recursively we need to use below command:
+To delete data recursively we need to use rmr command like below:
 ```shell script
 ls /
 [zookeeper, my-node]
@@ -596,8 +600,7 @@ openjdk version "1.8.0_222"
 OpenJDK Runtime Environment (build 1.8.0_222-8u222-b10-1ubuntu1~18.04.1-b10)
 OpenJDK 64-Bit Server VM (build 25.222-b10, mixed mode)
 ```
-
-So we have java node in our each server.
+We have java installed on each of our server.
 
 * Disable RAM Swap.
 
@@ -627,7 +630,9 @@ ngupta@node3:~$ sudo sysctl vm.swappiness
 vm.swappiness = 1
 ```
 As you can see the Node1 has already disabled the RAM swap, we had during the single node setup. But Node 2 and Node 3 
-are our new node so we had setup for them.
+are our new node so we had setup for them. Also as you remember from the RAM swap section we need to put an entry in
+/etc/systemctl.conf to setup this RAM swap disable even after restart. If you didn't done for your rest of nodes please
+do it and theen move ahead.
 
 * Get Kafka on all of the servers.
 
@@ -663,7 +668,7 @@ Warning: Permanently added '192.168.109.133' (ECDSA) to the list of known hosts.
 ngupta@192.168.109.133's password:
 kafka_2.12-2.3.1.tgz                                                                                                         
 ```
-At Node 1 we have downloaded a copy of Kafka and copied on to the server path /home/ngupta. Let's check server 2 and 
+At Node 1 we have downloaded Kafka and copied on to other servers path /home/ngupta. Let's check server 2 and 
 server 3.
 
 Node2
@@ -864,8 +869,7 @@ ngupta@node3:~$ nc -vz localhost 2181
 nc: connect to localhost port 2181 (tcp) failed: Connection refused
 ngupta@node3:~$
 ```
-
-So we have zookeeper running on each server, But they are still not in cluster. To start them as cluster we need to
+We have zookeeper running on each server, But they are still not in cluster. To start them as cluster we need to
 provide additional configuration.
 
 * Let's first check if each server is able to communicate with each other or not.
@@ -904,7 +908,7 @@ Connection to 192.168.109.133 2181 port [tcp/*] succeeded!
 ngupta@node3:~$ sudo service zookeeper stop
 ```
 
-If your any server not able to connect to other one first check zookeeper service up on them properly If zookeeper 
+If any server not able to connect to other one first check zookeeper service up on them properly or not. If zookeeper 
 service is running and still not able to communicate check your network connection and network topology between your 
 machines.
 
@@ -951,7 +955,8 @@ myid in which we have written number, this myid file is used by zookeeper in clu
 The id should be unique in cluster so make sure your each node have unique number not contradicting with other cluster id.
 
 * Create configuration for zookeeper cluster. We have created one configuration file which can be used for this course, 
-also you can use while setting up. You just need to update the data.dir and according to your cluster update server.x.
+also you can use while setting up. You just need to update the data.dir and server.x where x is my id setup for the 
+zookeeper node in above step. 
 
 We have copied this zookeeper.properties to our Node1.
 ```shell script
@@ -985,7 +990,7 @@ server.3=192.168.109.133:2888:3888
 ngupta@node1:~$
 ```
 As you can see we have updated our configuration for data directory and the server IPs of my cluster. You need update 
-this file as your configuration and network IPs. We also copied these file to Node 2 and Node 3 and have perform the
+this file as per your configuration and network IPs. We also copied these file to Node 2 and Node 3 and have perform the
 same operations like below:
 
 Node2
@@ -1081,7 +1086,7 @@ java.net.ConnectException: Connection refused (Connection refused)
 [2019-11-14 03:19:06,014] INFO Resolved hostname: 192.168.109.132 to address: /192.168.109.132 (org.apache.zookeeper.server.quorum.QuorumPeer)
 ```
 
-So This will stop when you start at least 2 zookeeper servers, When you will start 3 zookeeper servers below will be 
+This will stop when you start at least 2 zookeeper servers, and When you will start 3 zookeeper servers below will be 
 output on each node.
 
 Node1
@@ -1125,7 +1130,7 @@ Node3
 So you can see in logs that the Node1 and Node3 are followers and Node2 is elected as leader. You can find these string
 "NEWLEADER-ACK" or "FOLLOWING - LEADER ELECTION TOOK" in your logs to identify the leader and follower in your cluster.
 
-After bringing up the cluster using the command we tested that they are working fine,no running exception. Let's do the 
+After bringing up the cluster using below commands we tested that they are working fine,no running exception. Let's do the 
 four letter command check again and then we will stop and bring them up using service. 
 ```shell script
 ngupta@node1:~$ echo "ruok" | nc 192.168.109.131 2181 ; echo
@@ -1136,11 +1141,11 @@ ngupta@node1:~$ echo "ruok" | nc 192.168.109.133 2181 ; echo
 imok
 ```
 
-So our servers are healthy, we can start them as service. After starting the service double check with four letter 
+Our servers are healthy, we can start them as service. After starting the service double check with four letter 
 command.
 
 Let's talk about one more other four letter command which is stat, which gives the information about each zookeeper and 
-their mode. Below is the command and it's output.
+their mode. Below is the command and it's output:
 ```shell script
 ngupta@node1:~$ echo "stat" | nc 192.168.109.131 2181 ; echo
 Zookeeper version: 3.4.14-4c25d480e66aadd371de8bd2fd8da255ac140bcf, built on 03/06/2019 16:18 GMT
@@ -1186,7 +1191,7 @@ Mode: follower
 Node count: 4
 ```
 
-So it will show you the latency for my case because I am doing in multiple VMs on same machine it is 0. When you go out 
+This command will show you the latency for my case because I am doing in multiple VMs on same machine it is 0. When you go out 
 in production it will be important parameter to see. You can see 131 and 133 are in follower mode and 132 is act as
 leader in our quorum.
 
@@ -1277,7 +1282,7 @@ WATCHER::
 WatchedEvent state:SyncConnected type:NodeDataChanged path:/my-node
 ```
 
-So our data is getting replicated to other servers as well. So our zookeeper is now in cluster and happy.
+As we can see our data is getting replicated to other servers as well. So our zookeeper is now in cluster and happy.
 
 ### Four letter commands of zookeeper
 Till now we have seen two commands "ruok" and "stat" command to check status of zookeeper and a little bit their 
@@ -1307,13 +1312,13 @@ peerType=0
 * **echo "cons"| nc localhost 2181**
 
 List full connection/session details for all clients connected to this server with some more information like packet sent
-recieved.
+received.
 ```shell script
 ngupta@node1:~/kafka$ echo "cons"| nc localhost 2181
  /127.0.0.1:34454[0](queued=0,recved=1,sent=0)
 ```
  
-You can the more commands provided in the link in this section start.  
+You can explore more commands provided in the link in this section start.  
 
 ### Zookeeper performance
 * Zookeeper performance can be affected by the latency, so try to keep the latency as minimum as possible.
@@ -1365,12 +1370,12 @@ if replication factor 4 or more then this would incur network communications wit
 
 ### Kafka Configuration
 Kafka has more than 140 configuration parameter available. Only a few parameters are needed to get start. 
-But for production you can't go in one go, this is iterative process which tune your kafka using some configuration
-using parameters we set.
+But for production we can't put Kakfa in one go, this is iterative process which tune our kafka using some 
+configuration parameters, which we set over time after observations.
 * Kafka divided the parameter on the importance with level high,medium and low on parameter.
 * You will not get production ready kafka configuration in one go
-* Configuring Kafka is iterative process: behaviour changes over time based on usage and monitoring, so should your 
-configuration.
+* Configuring Kafka is iterative process: behaviour changes over time based on usage and monitoring, so we should update
+configuration over looking at observation and performance.
 
 Let's understand some parameter:
 
@@ -1391,8 +1396,8 @@ deleted according to the retention policies
 not present. Set false in production.
 
 ## 1.5 Kafka Single Instance setup
-We should have fastest I/O disk and used that for the Kafka like SSD. Use this fastest disk as mount in your machine and
-provide this path while setting up cluster configuration. For this lesson I am using local one which is available as our
+We should have fastest I/O disk like SSD which we can use for the Kafka. Use this fastest disk as mount in your machine and
+provide this path while setting up cluster configuration. For this lesson I am using local disk which is available as our
 local system, But recommendation will be use NAS and use mount location for this.
 
 To setup kafka cluster we will do below steps:
@@ -1402,7 +1407,7 @@ To setup kafka cluster we will do below steps:
 
 ### Augment the file handle limits
 Kafka opens many files, so we don't want to kafka failure due to file handler. To augment file limit we will append
-below lines in /etc/security/limits.conf with hard limit and soft limit 100000. To perform below you can use vi as the 
+below lines in /etc/security/limits.conf with hard limit and soft limit 100000. To perform below we can use vi as the 
 parameter is already set, or if does not exist or you have new server you can perform below:
 
 Node1
@@ -1461,8 +1466,8 @@ ngupta@node3:~$ cat /etc/security/limits.conf
 ````
 
 ### Launch Kafka on one machine
-Now to launch kafka let's copy the server.properties from here to your KAFKA_PATH/config folder. You need to update 
-below property with your machine values. 
+Now to launch kafka let's copy the server.properties from [here](configurations/server.properties) to your 
+<KAFKA_PATH>/config folder. You need to update below property with your machine values:
 * advertised.listeners=PLAINTEXT://<YOUR_IP>:9092
 * log.dirs=<PATH_OF_KAFKA_DATA_DIR_YOU_CREATED>
 * zookeeper.connect=<YOUR_ZOOKEEPER_CLUSTER>
@@ -1527,6 +1532,8 @@ ngupta@node1:~/kafka$ bin/kafka-server-start.sh config/server.properties
 [2019-11-18 11:26:33,924] INFO [KafkaServer id=1] started (kafka.server.KafkaServer)
 ```
 
+As we can is see in above log, kafka broker 1 is started.
+
 ### Setup Kafka as service
 Now let's install kafka as service. So we will stop the running instance using Ctrl+C and then we will follow below steps:
 * Copy file [kafka.sh](scripts/kafka.sh) in etc/init.d/ location.
@@ -1560,7 +1567,7 @@ Connection to localhost 9092 port [tcp/*] succeeded!
 
 It take few seconds to start and then our kafka broker is started successfully. If you are planning to use only
 single broker and hands-on please update min.insync.replicas to 1, otherwise you will be not able to perform produce
-and consume operation. If you are going to complete cluster setup follow next sections.
+and consume operation. If you are going to complete cluster setup follow next section.
 
 ## 1.6 Kafka Cluster setup
 To setup kafka in cluster, we are going to perform below steps:
@@ -1691,7 +1698,8 @@ dataLength = 200
 numChildren = 0
 ```
 
-As we can see our brokers in kafka cluster node and when get the ode we get some information about the node.
+As we can see our brokers in kafka cluster node and when we query node data we can see the information about that particular
+kafka broker node.
 
 ### Test the cluster
 Let's test our cluster. For testing the cluster we will follow below steps:
@@ -1762,7 +1770,7 @@ Note: This will have no impact if delete.topic.enable is not set to true.
 #### Network
 * Latency is key in Kafka
     * Ensure your kafka instances are your Zookeeper instances are geographically close.
-    * Do not same cluster broker in different geolocation.
+    * Do not put same cluster broker in different geolocation.
 * Network bandwidth is key in Kafka
     * Network will be your bottleneck.
     * Make sure you have enough bandwidth to handle many connections and TCP requests.
@@ -1811,7 +1819,7 @@ first understand when a client connects to kafka cluster below steps will be per
 * Kafka provide the advertised.host to client for forward communications.
 * Client try to connect kafka server using the IP it get in last step.
 
-Now let's understand what happend when we set advertised.listener to private IP, public IP and localhost.
+Now let's understand what happen when we set advertised.listener to private IP, public IP and localhost.
 
 ##### private IP set as advertised listener
 When the client is on same network, it will connect to server using public ip and private ip both. If we are trying to
@@ -2367,6 +2375,7 @@ prometheus on devtools server. Let's add below scrape config on our prometheus s
     static_configs:
             - targets: ['192.168.109.131:8081','192.168.109.132:8081','192.168.109.133:8081']
 ```
+
 ```shell script
 ngupta@devandtools:~/prometheus$ vi prometheus.yml
 ngupta@devandtools:~/prometheus$ sudo systemctl restart prometheus
